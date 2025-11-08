@@ -1,41 +1,32 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as digitalocean from '@pulumi/digitalocean';
 
-// Get the image tag from environment or use latest
-const imageTag = process.env.IMAGE_TAG || 'latest';
-const imageRepo = process.env.GITHUB_REPOSITORY || 'jamartin/hotnote';
-const imageName = `ghcr.io/${imageRepo.toLowerCase()}:${imageTag}`;
+// Get configuration
+const config = new pulumi.Config();
+const githubRepo = process.env.GITHUB_REPOSITORY || 'anthropics/hotnote';
+const branch = config.get('branch') || 'main';
 
-// Create a DigitalOcean App Platform app
+// Create a DigitalOcean App Platform app for static site
 const app = new digitalocean.App('hotnote-app', {
   spec: {
     name: 'hotnote',
     region: 'fra', // Frankfurt
-    services: [
+    staticSites: [
       {
-        name: 'web',
-        instanceCount: 1,
-        instanceSizeSlug: 'basic-xxs', // $5 a month
-        image: {
-          registryType: 'GHCR',
-          registry: imageRepo.toLowerCase(),
-          repository: imageRepo.toLowerCase(),
-          tag: imageTag,
+        name: 'hotnote-web',
+        github: {
+          repo: githubRepo,
+          branch: branch,
+          deployOnPush: true,
         },
-        httpPort: 80,
-        routes: [
+        buildCommand: 'npm ci && npm run build',
+        outputDir: '/dist',
+        envs: [
           {
-            path: '/',
+            key: 'NODE_VERSION',
+            value: '20',
           },
         ],
-        healthCheck: {
-          httpPath: '/',
-          initialDelaySeconds: 10,
-          periodSeconds: 10,
-          timeoutSeconds: 3,
-          successThreshold: 1,
-          failureThreshold: 3,
-        },
       },
     ],
   },
@@ -44,4 +35,3 @@ const app = new digitalocean.App('hotnote-app', {
 // Export the app's live URL
 export const appUrl = app.liveUrl;
 export const appId = app.id;
-export const deployedImage = imageName;
