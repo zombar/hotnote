@@ -65,6 +65,30 @@ body {
     overflow: hidden;
 }
 
+/* Global scrollbar styling */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) var(--bg-primary);
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+*::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
 #app {
     display: flex;
     flex-direction: column;
@@ -101,6 +125,13 @@ header::after {
 header.searching::after {
     opacity: 1;
     animation: gradientSlide 2s linear infinite;
+}
+
+/* Animate the navbar gradient when logo is animating */
+.app-logo.compact ~ .nav-controls ~ #new-btn ~ .breadcrumb ~ .actions,
+header:has(.app-logo.compact)::after {
+    opacity: 1;
+    animation: gradientSlide 3.3s linear forwards;
 }
 
 @keyframes gradientSlide {

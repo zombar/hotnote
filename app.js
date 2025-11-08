@@ -1693,7 +1693,37 @@ const toggleDarkMode = async () => {
     // Reinitialize editor with new theme colors
     if (editorView || isMarkdownEditorActive()) {
         const currentContent = getEditorContent();
+
+        // Save scroll position
+        let scrollTop = 0;
+        let scrollLeft = 0;
+        if (editorView) {
+            const scroller = editorView.scrollDOM;
+            scrollTop = scroller.scrollTop;
+            scrollLeft = scroller.scrollLeft;
+        } else if (isMarkdownEditorActive()) {
+            const milkdownScroller = document.querySelector('.milkdown');
+            if (milkdownScroller) {
+                scrollTop = milkdownScroller.scrollTop;
+                scrollLeft = milkdownScroller.scrollLeft;
+            }
+        }
+
         await initEditor(currentContent, currentFilename);
+
+        // Restore scroll position
+        setTimeout(() => {
+            if (editorView) {
+                editorView.scrollDOM.scrollTop = scrollTop;
+                editorView.scrollDOM.scrollLeft = scrollLeft;
+            } else if (isMarkdownEditorActive()) {
+                const milkdownScroller = document.querySelector('.milkdown');
+                if (milkdownScroller) {
+                    milkdownScroller.scrollTop = scrollTop;
+                    milkdownScroller.scrollLeft = scrollLeft;
+                }
+            }
+        }, 0);
     }
 };
 
