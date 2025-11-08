@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/zombar/hotnote.io/compare/v1.0.2...v1.1.0) (2025-11-08)
+
+
+### Features
+
+* add DigitalOcean Container Registry support ([009bf27](https://github.com/zombar/hotnote.io/commit/009bf277ced37aae6b4c53e71e146a411470ae25))
+* add hotnote.io domain configuration ([04f22f4](https://github.com/zombar/hotnote.io/commit/04f22f45b4d4dd4d3623c0b53915e7efe0220977))
+* improve navbar gradient with continuous color blending ([b2f90a8](https://github.com/zombar/hotnote.io/commit/b2f90a85f5b5b49654dccf419390d4f0beb76875))
+
+
+### Bug Fixes
+
+* session file now only saved in root directory ([56d7785](https://github.com/zombar/hotnote.io/commit/56d7785025297f8a0b1233b52b7cc5933e76e97d))
+
 ## [1.0.2](https://github.com/zombar/hotnote/compare/v1.0.1...v1.0.2) (2025-11-08)
 
 
