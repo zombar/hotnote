@@ -10,12 +10,12 @@ const imageName = `ghcr.io/${imageRepo.toLowerCase()}:${imageTag}`;
 const app = new digitalocean.App('hotnote-app', {
   spec: {
     name: 'hotnote',
-    region: 'nyc',
+    region: 'fra', // Frankfurt
     services: [
       {
         name: 'web',
         instanceCount: 1,
-        instanceSizeSlug: 'basic-xxs', // $5/month
+        instanceSizeSlug: 'professional-xs', // Smallest high CPU AMD instance
         image: {
           registryType: 'GHCR',
           registry: imageRepo.toLowerCase(),
