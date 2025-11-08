@@ -7,11 +7,10 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  REGISTRY: registry.digitalocean.com
+  IMAGE_NAME: hotnote/hotnote
 
 jobs:
   build-and-push:
@@ -26,17 +25,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Log in to DigitalOcean Container Registry
         uses: docker/login-action@v3
         with:
-          registry: registry.digitalocean.com
+          registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DIGITALOCEAN_TOKEN }}
           password: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
@@ -44,14 +36,13 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-            registry.digitalocean.com/hotnote/hotnote
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+            type=raw,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

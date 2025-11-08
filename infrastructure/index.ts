@@ -9,6 +9,9 @@ const imageTag = process.env.IMAGE_TAG || 'latest';
 const registry = 'hotnote';
 const repository = 'hotnote';
 
+// Debug: Log the image tag being used
+console.log(`Using image tag: ${imageTag}`);
+
 // Create a DigitalOcean App Platform app
 const app = new digitalocean.App('hotnote-app', {
   spec: {
