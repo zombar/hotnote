@@ -1,3 +1,4 @@
+/* hotNote styles - brand themed syntax highlighting */
 * {
     margin: 0;
     padding: 0;
@@ -19,15 +20,15 @@
     --brand-purple: #7b3ff2;
     --brand-cyan: #00d4ff;
 
-    /* Washed out colors */
-    --red: #cc9999;
-    --green: #99cc99;
-    --yellow: #cccc99;
-    --blue: #9999cc;
-    --purple: #cc99cc;
-    --aqua: #99cccc;
-    --orange: #e91e8c;              /* Updated to brand pink */
-    --gray: #999999;
+    /* Syntax colors based on brand */
+    --red: #e91e8c;                 /* brand pink */
+    --green: #00d4ff;               /* brand cyan */
+    --yellow: #e91e8c;              /* brand pink */
+    --blue: #00d4ff;                /* brand cyan */
+    --purple: #7b3ff2;              /* brand purple */
+    --aqua: #00d4ff;                /* brand cyan */
+    --orange: #7b3ff2;              /* brand purple */
+    --gray: #999999;                /* keep subtle for comments */
 }
 
 [data-theme="dark"] {
@@ -45,15 +46,15 @@
     --brand-purple: #9357ff;
     --brand-cyan: #00e5ff;
 
-    /* Adjusted washed colors for dark mode */
-    --red: #e68a8a;
-    --green: #8acc8a;
-    --yellow: #e6e68a;
-    --blue: #8a8acc;
-    --purple: #cc8acc;
-    --aqua: #8acccc;
-    --orange: #ff2d96;
-    --gray: #999999;
+    /* Syntax colors based on brand (brighter for dark mode) */
+    --red: #ff2d96;                 /* brand pink */
+    --green: #00e5ff;               /* brand cyan */
+    --yellow: #ff2d96;              /* brand pink */
+    --blue: #00e5ff;                /* brand cyan */
+    --purple: #9357ff;              /* brand purple */
+    --aqua: #00e5ff;                /* brand cyan */
+    --orange: #9357ff;              /* brand purple */
+    --gray: #888888;                /* keep subtle for comments */
 }
 
 body {
@@ -85,6 +86,7 @@ header {
     width: 28px;
     height: 28px;
     flex-shrink: 0;
+    filter: drop-shadow(0 0 4px rgba(255, 200, 100, 0.4));
 }
 
 .nav-controls {
@@ -163,6 +165,35 @@ header {
     vertical-align: middle;
     position: relative;
     top: -1px;
+}
+
+.breadcrumb-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    font-weight: 500;
+    padding: 0;
+    min-width: 150px;
+    width: auto;
+    position: relative;
+}
+
+.breadcrumb-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.5;
+    font-weight: 400;
+}
+
+/* Add separator before input when there are path items */
+.breadcrumb-item:last-child:not(:only-child)::after {
+    content: '›';
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+    color: var(--border);
+    cursor: default;
 }
 
 .actions {
@@ -377,6 +408,13 @@ button:disabled:hover {
     font-family: "MesloLGS NF", "Meslo LG", Menlo, Monaco, "Courier New", monospace;
 }
 
+/* Placeholder text when no file is open */
+.cm-placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-style: italic;
+}
+
 .cm-scroller {
     overflow: auto;
     line-height: 1.6;
@@ -442,6 +480,10 @@ button:disabled:hover {
     animation: cursor-blink 1.2s steps(2, start) infinite;
 }
 
+[data-theme="dark"] .cm-cursor {
+    background: #e0e0e0 !important;
+}
+
 @keyframes cursor-blink {
     0%, 70% {
         opacity: 1;
@@ -456,35 +498,39 @@ button:disabled:hover {
     caret-color: var(--brand-pink);
 }
 
+[data-theme="dark"] .cm-content {
+    caret-color: #e0e0e0;
+}
+
 .ͼ1.cm-focused {
     outline: none;
 }
 
-/* Tokens - Pale washed out style */
-.cm-keyword { color: var(--red); font-weight: 500; }
-.cm-operator { color: var(--orange); }
-.cm-variable { color: var(--blue); }
-.cm-variableName { color: var(--blue); }
-.cm-string { color: var(--green); }
-.cm-number { color: var(--purple); }
-.cm-bool { color: var(--purple); }
-.cm-comment { color: var(--gray); font-style: italic; }
-.cm-tag { color: var(--aqua); }
-.cm-attribute { color: var(--yellow); }
-.cm-property { color: var(--aqua); }
-.cm-propertyName { color: var(--blue); }
-.cm-function { color: var(--green); font-weight: 500; }
-.cm-className { color: var(--yellow); }
-.cm-typeName { color: var(--yellow); }
-.cm-name { color: var(--aqua); }
-.cm-regexp { color: var(--orange); }
-.cm-escape { color: var(--red); }
-.cm-meta { color: var(--aqua); }
-.cm-bracket { color: var(--text-secondary); }
-.cm-punctuation { color: var(--text-secondary); }
-.cm-definition { color: var(--yellow); }
-.cm-local { color: var(--blue); }
-.cm-constant { color: var(--purple); }
+/* Tokens - Brand colors (pink, purple, cyan) */
+.cm-keyword { color: var(--red); font-weight: 500; }        /* pink */
+.cm-operator { color: var(--orange); }                       /* purple */
+.cm-variable { color: var(--blue); }                         /* cyan */
+.cm-variableName { color: var(--blue); }                     /* cyan */
+.cm-string { color: var(--green); }                          /* cyan */
+.cm-number { color: var(--purple); }                         /* purple */
+.cm-bool { color: var(--purple); }                           /* purple */
+.cm-comment { color: var(--gray); font-style: italic; }      /* gray */
+.cm-tag { color: var(--aqua); }                              /* cyan */
+.cm-attribute { color: var(--yellow); }                      /* pink */
+.cm-property { color: var(--aqua); }                         /* cyan */
+.cm-propertyName { color: var(--blue); }                     /* cyan */
+.cm-function { color: var(--green); font-weight: 500; }      /* cyan */
+.cm-className { color: var(--yellow); }                      /* pink */
+.cm-typeName { color: var(--yellow); }                       /* pink */
+.cm-name { color: var(--aqua); }                             /* cyan */
+.cm-regexp { color: var(--orange); }                         /* purple */
+.cm-escape { color: var(--red); }                            /* pink */
+.cm-meta { color: var(--aqua); }                             /* cyan */
+.cm-bracket { color: var(--text-secondary); }                /* subtle */
+.cm-punctuation { color: var(--text-secondary); }            /* subtle */
+.cm-definition { color: var(--yellow); }                     /* pink */
+.cm-local { color: var(--blue); }                            /* cyan */
+.cm-constant { color: var(--purple); }                       /* purple */
 
 @media (max-width: 768px) {
     header {
