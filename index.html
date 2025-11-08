@@ -14,7 +14,18 @@
 <body>
     <div id="app">
         <header>
-            <img src="/icon-192.png" alt="hotnote" class="app-icon">
+            <div class="app-logo">
+                <span>H</span>
+                <span>O</span>
+                <span>T</span>
+                <span>N</span>
+                <span>O</span>
+                <span>T</span>
+                <span>E</span>
+                <span>.</span>
+                <span>I</span>
+                <span>O</span>
+            </div>
             <div class="nav-controls">
                 <button id="back-btn" title="Go back" disabled>←</button>
                 <button id="forward-btn" title="Go forward" disabled>→</button>
@@ -26,8 +37,8 @@
             </nav>
             <div class="actions">
                 <label class="autosave-toggle">
-                    <input type="checkbox" id="autosave-checkbox">
-                    <span>autosave</span>
+                    <input type="checkbox" id="autosave-checkbox" checked>
+                    <span id="autosave-label">autosave</span>
                 </label>
                 <button id="dark-mode-toggle" title="Switch to dark mode">○</button>
                 <button id="rich-toggle-btn" class="hidden" title="Toggle rich markdown editor">rich</button>
