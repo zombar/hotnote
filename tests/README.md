@@ -4,7 +4,7 @@ Comprehensive unit and integration tests for the hotnote code editor.
 
 ## Test Coverage
 
-**46 tests** covering all core functionality:
+**216 tests** covering all core functionality:
 - ✅ Temp storage operations (save, load, clear, check)
 - ✅ File path key generation
 - ✅ Language detection for all supported file types
@@ -115,11 +115,27 @@ const dirHandle = createMockDirectoryHandle('src', [
 
 ## Coverage Report
 
-Current coverage for `core.js`: **100%**
+Current overall coverage: **89.22%**
+
+**core.js**: 100% coverage
 - Statements: 100%
-- Branches: 96.77%
+- Branches: 72.46%
 - Functions: 100%
 - Lines: 100%
+
+**markdown-editor.js**: 75.24% coverage
+- Statements: 75.24%
+- Branches: 76.92%
+- Functions: 83.33%
+- Lines: 75.24%
+
+### Coverage Thresholds (enforced in CI)
+- Lines: 70%
+- Functions: 85%
+- Branches: 70%
+- Statements: 70%
+
+All thresholds are currently met ✅
 
 ## Writing New Tests
 
@@ -190,12 +206,51 @@ Check that you're using the mock creators from `setup.js`
 ### Coverage not generating
 Install `@vitest/coverage-v8` package
 
-## Future Test Additions
+## New Test Files (Integration Tests)
 
-Potential areas for additional tests:
-- [ ] Editor integration with CodeMirror
-- [ ] Autosave interval timing
-- [ ] File System Access API error handling
-- [ ] Keyboard shortcut handling
-- [ ] Service worker functionality
-- [ ] PWA installation flow
+### `file-operations.test.js` (45 tests)
+Complete integration tests for file operations:
+- ✅ File creation in root and nested directories
+- ✅ File opening with temp storage restoration
+- ✅ File search (prefix, recursive, fuzzy matching)
+- ✅ Path-based file creation
+- ✅ Special characters handling
+- ✅ Autosave integration
+
+### `navigation-integration.test.js` (18 tests)
+Navigation and history management:
+- ✅ Back/forward navigation with state preservation
+- ✅ Directory hierarchy navigation
+- ✅ Temp storage during navigation
+- ✅ Mixed file/directory navigation
+- ✅ Scroll position preservation
+
+### `autosave-integration.test.js` (16 tests)
+Autosave functionality:
+- ✅ Timer management and debouncing
+- ✅ Multiple dirty files handling
+- ✅ Manual save coordination
+- ✅ Error handling
+- ✅ Large file content
+
+### `serviceworker.test.js` (36 tests)
+Service Worker and offline functionality:
+- ✅ Service Worker registration and lifecycle
+- ✅ Cache management (create, retrieve, delete)
+- ✅ Cache-first fetch strategy
+- ✅ Offline functionality
+- ✅ Cache versioning and migration
+
+### `markdown-editor.test.js` (31 tests)
+Markdown editor functionality:
+- ✅ Editor lifecycle management
+- ✅ Content operations
+- ✅ Rich mode toggle
+- ✅ Change listeners
+
+### `undo.test.js` (20 tests)
+Undo functionality:
+- ✅ Original content tracking
+- ✅ Temp storage behavior
+- ✅ isDirty flag management
+- ✅ Edit/undo cycles
