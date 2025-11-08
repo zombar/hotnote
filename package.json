@@ -1,6 +1,6 @@
 {
   "name": "hotnote",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A lightweight, minimalistic code editor and note-taking app",
   "homepage": "https://hotnote.io",
   "type": "module",
