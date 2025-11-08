@@ -103,7 +103,7 @@ let navigationHistory = [];
 let historyIndex = -1;
 
 // Autosave
-let autosaveEnabled = false;
+let autosaveEnabled = true;
 let autosaveInterval = null;
 let isDirty = false;
 
@@ -389,6 +389,14 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
     });
 };
 
+// Update logo state based on whether a file is open
+const updateLogoState = () => {
+    const logo = document.querySelector('.app-logo');
+    if (logo && currentFileHandle) {
+        logo.classList.add('compact');
+    }
+};
+
 // Update breadcrumb display
 const updateBreadcrumb = () => {
     const breadcrumb = document.getElementById('breadcrumb');
@@ -467,9 +475,15 @@ const updateBreadcrumb = () => {
         }
     }
 
-    document.title = currentPath.length > 0
-        ? `${currentPath.map(p => p.name).join('/')}${currentFileHandle ? '/' + currentFilename : ''}${isDirty ? ' •' : ''} - hotnote`
-        : `${currentFilename}${isDirty ? ' •' : ''} - hotnote`;
+    // Set browser tab title: filename (folder/path) • - hotnote
+    if (currentFileHandle) {
+        const folderPath = currentPath.length > 0 ? ` (${currentPath.map(p => p.name).join('/')})` : '';
+        document.title = `${currentFilename}${folderPath}${isDirty ? ' •' : ''} - hotnote`;
+    } else if (currentPath.length > 0) {
+        document.title = `(${currentPath.map(p => p.name).join('/')}) - hotnote`;
+    } else {
+        document.title = 'hotnote';
+    }
 };
 
 // Update rich toggle button visibility and state
@@ -608,6 +622,7 @@ const goBack = async () => {
     }
 
     updateBreadcrumb();
+    updateLogoState();
     updateNavigationButtons();
 };
 
@@ -669,6 +684,7 @@ const goForward = async () => {
     }
 
     updateBreadcrumb();
+    updateLogoState();
     updateNavigationButtons();
 };
 
@@ -929,6 +945,7 @@ const openFileFromPicker = async (fileHandle) => {
         }
 
         updateBreadcrumb();
+        updateLogoState();
         hideFilePicker();
 
         addToHistory();
@@ -1071,14 +1088,14 @@ const calculateRelevance = (filename, query, depth = 0) => {
     return 10 - depth;
 };
 
-// Recursive search through directories
-const recursiveSearchFiles = async (dirHandle, query, maxDepth = 10, maxResults = 100) => {
-    const results = [];
+// Recursive search through directories (async generator for progressive results)
+const recursiveSearchFiles = async function* (dirHandle, query, maxDepth = 10, maxResults = 100) {
     const visited = new Set(); // Prevent infinite loops
+    let resultCount = 0;
 
-    const traverse = async (currentDir, currentPath = '', depth = 0) => {
+    const traverse = async function* (currentDir, currentPath = '', depth = 0) {
         // Stop if we've hit depth limit or result limit
-        if (depth > maxDepth || results.length >= maxResults) {
+        if (depth > maxDepth || resultCount >= maxResults) {
             return;
         }
 
@@ -1087,7 +1104,7 @@ const recursiveSearchFiles = async (dirHandle, query, maxDepth = 10, maxResults 
 
             for (const entry of entries) {
                 // Stop if we've reached result limit
-                if (results.length >= maxResults) {
+                if (resultCount >= maxResults) {
                     return;
                 }
 
@@ -1108,7 +1125,7 @@ const recursiveSearchFiles = async (dirHandle, query, maxDepth = 10, maxResults 
                 // Check if entry matches query
                 if (fuzzyMatch(entry.name, query)) {
                     const relevance = calculateRelevance(entry.name, query, depth);
-                    results.push({
+                    yield {
                         name: entry.name,
                         path: currentPath,
                         fullPath: entryPath,
@@ -1116,12 +1133,13 @@ const recursiveSearchFiles = async (dirHandle, query, maxDepth = 10, maxResults 
                         handle: entry,
                         depth: depth,
                         relevance: relevance
-                    });
+                    };
+                    resultCount++;
                 }
 
                 // Recursively search subdirectories
-                if (entry.kind === 'directory') {
-                    await traverse(entry, entryPath, depth + 1);
+                if (entry.kind === 'directory' && resultCount < maxResults) {
+                    yield* traverse(entry, entryPath, depth + 1);
                 }
             }
         } catch (err) {
@@ -1130,20 +1148,42 @@ const recursiveSearchFiles = async (dirHandle, query, maxDepth = 10, maxResults 
         }
     };
 
-    await traverse(dirHandle);
+    yield* traverse(dirHandle);
+};
 
-    // Sort by relevance (highest first), then by path length (shorter first), then alphabetically
-    results.sort((a, b) => {
-        if (b.relevance !== a.relevance) {
-            return b.relevance - a.relevance;
-        }
-        if (a.depth !== b.depth) {
-            return a.depth - b.depth;
-        }
-        return a.fullPath.localeCompare(b.fullPath);
+// Helper function to create a dropdown item for autocomplete
+const createDropdownItem = (result, input, dropdown, handleSubmit) => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    if (result.kind === 'directory') {
+        item.classList.add('is-directory');
+    }
+
+    // Name line
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'autocomplete-item-name';
+    const icon = result.kind === 'directory' ? '📁 ' : '📄 ';
+    nameDiv.textContent = icon + result.name;
+
+    // Path line (if not in current directory)
+    if (result.path) {
+        const pathDiv = document.createElement('div');
+        pathDiv.className = 'autocomplete-item-path';
+        pathDiv.textContent = result.path;
+        item.appendChild(nameDiv);
+        item.appendChild(pathDiv);
+    } else {
+        item.appendChild(nameDiv);
+    }
+
+    item.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Prevent blur
+        input.value = result.fullPath;
+        dropdown.style.display = 'none';
+        handleSubmit();
     });
 
-    return results;
+    return item;
 };
 
 // Show inline filename input with autocomplete
@@ -1209,8 +1249,43 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
                     // Show loading animation for recursive search
                     header.classList.add('searching');
 
-                    // Recursive search mode
-                    const results = await recursiveSearchFiles(currentDirHandle, searchQuery);
+                    // Recursive search mode with progressive results
+                    const results = [];
+                    dropdown.innerHTML = '';
+
+                    // Stream results as they're found
+                    for await (const result of recursiveSearchFiles(currentDirHandle, searchQuery)) {
+                        results.push(result);
+
+                        // Add to dropdown immediately for instant feedback
+                        const item = createDropdownItem(result, input, dropdown, handleSubmit);
+                        dropdown.appendChild(item);
+
+                        // Show dropdown on first result
+                        if (results.length === 1) {
+                            const rect = input.getBoundingClientRect();
+                            dropdown.style.left = rect.left + 'px';
+                            dropdown.style.top = (rect.bottom + 4) + 'px';
+                            dropdown.style.display = 'block';
+                        }
+                    }
+
+                    // Final sort when all results are in
+                    if (results.length > 1) {
+                        results.sort((a, b) => {
+                            if (b.relevance !== a.relevance) return b.relevance - a.relevance;
+                            if (a.depth !== b.depth) return a.depth - b.depth;
+                            return a.fullPath.localeCompare(b.fullPath);
+                        });
+
+                        // Rebuild dropdown with sorted results
+                        dropdown.innerHTML = '';
+                        results.forEach(result => {
+                            const item = createDropdownItem(result, input, dropdown, handleSubmit);
+                            dropdown.appendChild(item);
+                        });
+                    }
+
                     filteredFiles = results;
                 } else {
                     // Normal prefix mode (current directory only)
@@ -1230,40 +1305,14 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
                     return;
                 }
 
-                // Build dropdown items with two-line format
-                dropdown.innerHTML = '';
-                filteredFiles.forEach((result, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'autocomplete-item';
-                    if (result.kind === 'directory') {
-                        item.classList.add('is-directory');
-                    }
-
-                    // Name line
-                    const nameDiv = document.createElement('div');
-                    nameDiv.className = 'autocomplete-item-name';
-                    const icon = result.kind === 'directory' ? '📁 ' : '📄 ';
-                    nameDiv.textContent = icon + result.name;
-
-                    // Path line (if not in current directory)
-                    if (result.path) {
-                        const pathDiv = document.createElement('div');
-                        pathDiv.className = 'autocomplete-item-path';
-                        pathDiv.textContent = result.path;
-                        item.appendChild(nameDiv);
-                        item.appendChild(pathDiv);
-                    } else {
-                        item.appendChild(nameDiv);
-                    }
-
-                    item.addEventListener('mousedown', (e) => {
-                        e.preventDefault(); // Prevent blur
-                        input.value = result.fullPath;
-                        dropdown.style.display = 'none';
-                        handleSubmit();
+                // Build dropdown items for non-recursive mode
+                if (!isRecursiveMode) {
+                    dropdown.innerHTML = '';
+                    filteredFiles.forEach((result, index) => {
+                        const item = createDropdownItem(result, input, dropdown, handleSubmit);
+                        dropdown.appendChild(item);
                     });
-                    dropdown.appendChild(item);
-                });
+                }
 
                 // Position dropdown below input
                 const rect = input.getBoundingClientRect();
@@ -1542,14 +1591,7 @@ const createOrOpenFile = async (filePathOrName) => {
         }
 
         updateBreadcrumb();
-
-        // Enable autosave for the file
-        if (!autosaveEnabled) {
-            autosaveEnabled = true;
-            document.getElementById('autosave-checkbox').checked = true;
-            startAutosave();
-        }
-
+        updateLogoState();
         addToHistory();
         hideFilePicker();
 
@@ -1670,8 +1712,28 @@ document.getElementById('new-btn').addEventListener('click', newFile);
 document.getElementById('back-btn').addEventListener('click', goBack);
 document.getElementById('forward-btn').addEventListener('click', goForward);
 document.getElementById('folder-up-btn').addEventListener('click', goFolderUp);
+// Helper function to animate autosave label
+const animateAutosaveLabel = (shouldHide) => {
+    const label = document.getElementById('autosave-label');
+
+    if (shouldHide) {
+        // Linger for 2 seconds, then fade out
+        setTimeout(() => {
+            label.classList.add('fade-out');
+            // After fade animation completes, hide completely
+            setTimeout(() => {
+                label.classList.add('hidden');
+            }, 500); // Match CSS transition duration
+        }, 2000);
+    } else {
+        // Show label immediately when unchecked
+        label.classList.remove('hidden', 'fade-out');
+    }
+};
+
 document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
     toggleAutosave(e.target.checked);
+    animateAutosaveLabel(e.target.checked);
 });
 document.getElementById('rich-toggle-btn').addEventListener('click', toggleRichMode);
 document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
@@ -1760,6 +1822,13 @@ if ('serviceWorker' in navigator) {
     await initEditor();
     updateBreadcrumb();
     updateNavigationButtons();
+
+    // Start autosave (enabled by default)
+    if (autosaveEnabled) {
+        startAutosave();
+        // Animate the autosave label to hide after initial load
+        animateAutosaveLabel(true);
+    }
 
     // Show welcome prompt on first load
     setTimeout(() => {
