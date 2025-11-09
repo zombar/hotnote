@@ -1,3 +1,6 @@
 name: hotnote-infrastructure
-runtime: nodejs
+runtime:
+  name: nodejs
+  options:
+    typescript: true
 description: DigitalOcean infrastructure for hotnote PWA

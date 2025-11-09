@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Pulumi infrastructure for hotnote deployment",
   "main": "index.ts",
-  "type": "module",
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
@@ -15,6 +14,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
     "typescript": "^5.0.0",
     "vitest": "^4.0.8"
   }
