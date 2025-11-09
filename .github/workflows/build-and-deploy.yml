@@ -82,14 +82,12 @@ jobs:
       - name: Deploy with Pulumi
         uses: nick-fields/retry@v3
         with:
-          work-dir: ./infra
-          stack-name: hotnote
-          # Auto-approve since release was already approved by merging PR
-          upsert: true
           timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
+            cd infra
+            pulumi stack select hotnote --create
             pulumi up --yes --skip-preview
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
