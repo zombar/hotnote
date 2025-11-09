@@ -876,7 +876,7 @@ const goBack = async () => {
   // Restore editor state if available
   if (state.editorState) {
     // Use requestAnimationFrame to ensure editor is fully initialized
-    // eslint-disable-next-line no-undef
+
     requestAnimationFrame(() => {
       focusManager._restoreEditorState(state.editorState);
     });
@@ -955,7 +955,7 @@ const goForward = async () => {
   // Restore editor state if available
   if (state.editorState) {
     // Use requestAnimationFrame to ensure editor is fully initialized
-    // eslint-disable-next-line no-undef
+
     requestAnimationFrame(() => {
       focusManager._restoreEditorState(state.editorState);
     });
@@ -2485,9 +2485,23 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       cursor.style.display = 'none';
     });
 
+    // Create persistent measureSpan element (kept in DOM to avoid layout thrashing)
+    const measureSpan = document.createElement('span');
+    measureSpan.style.visibility = 'hidden';
+    measureSpan.style.position = 'absolute';
+    measureSpan.style.whiteSpace = 'pre';
+    measureSpan.style.pointerEvents = 'none';
+    document.body.appendChild(measureSpan);
+
+    let isInitializing = true;
+
     input.addEventListener('focus', () => {
       // Show cursor when input gains focus
       cursor.style.display = 'inline-block';
+      // Update position on focus only after initialization
+      if (!isInitializing) {
+        updateCursorPosition();
+      }
     });
 
     // Function to update cursor position
@@ -2496,29 +2510,31 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
         // Only update if input is in the DOM
         if (!input.isConnected) return;
 
-        // Create a temporary span to measure text width up to cursor position
-        const measureSpan = document.createElement('span');
-        measureSpan.style.visibility = 'hidden';
-        measureSpan.style.position = 'absolute';
-        measureSpan.style.whiteSpace = 'pre';
-
-        const computedStyle = window.getComputedStyle(input);
-        measureSpan.style.font = computedStyle.font;
-        measureSpan.style.fontSize = computedStyle.fontSize;
-        measureSpan.style.fontFamily = computedStyle.fontFamily;
-        measureSpan.style.fontWeight = computedStyle.fontWeight;
+        // Copy input styles to measureSpan (only on first call or if styles changed)
+        if (!measureSpan.dataset.styled) {
+          const computedStyle = window.getComputedStyle(input);
+          measureSpan.style.font = computedStyle.font;
+          measureSpan.style.fontSize = computedStyle.fontSize;
+          measureSpan.style.fontFamily = computedStyle.fontFamily;
+          measureSpan.style.fontWeight = computedStyle.fontWeight;
+          measureSpan.dataset.styled = 'true';
+        }
 
         const cursorPos = input.selectionStart || 0;
         measureSpan.textContent = input.value.substring(0, cursorPos) || '\u200B';
-        document.body.appendChild(measureSpan);
 
         const width = measureSpan.offsetWidth;
-        document.body.removeChild(measureSpan);
-
         cursor.style.left = width + 'px';
       } catch (err) {
         // Silently fail if there's an error
         console.debug('Cursor position update error:', err);
+      }
+    };
+
+    // Cleanup function to remove measureSpan when input is removed
+    const cleanup = () => {
+      if (measureSpan.parentNode) {
+        measureSpan.remove();
       }
     };
 
@@ -2535,13 +2551,25 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
     document.body.appendChild(dropdown);
     input.focus();
 
-    // Initial cursor position update
-    setTimeout(updateCursorPosition, 0);
+    // Use requestAnimationFrame for smooth initial cursor positioning
+    requestAnimationFrame(() => {
+      isInitializing = false;
+      updateCursorPosition();
 
-    // Trigger autocomplete if there's an initial value
-    if (initialValue) {
-      updateDropdown();
-    }
+      // Trigger autocomplete if there's an initial value
+      if (initialValue) {
+        updateDropdown();
+      }
+    });
+
+    // Clean up measureSpan when done
+    input.addEventListener(
+      'blur',
+      () => {
+        setTimeout(cleanup, 250);
+      },
+      { once: true }
+    );
   });
 };
 
@@ -2974,7 +3002,6 @@ document.querySelector('header').addEventListener('click', (e) => {
   // Toggle the file picker
   if (picker.classList.contains('hidden')) {
     // Open the file picker
-    focusManager.saveFocusState();
     showFilePicker(currentDirHandle);
   } else {
     // Close the file picker

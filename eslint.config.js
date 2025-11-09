@@ -28,6 +28,7 @@ export default [
         clearTimeout: 'readonly',
         setInterval: 'readonly',
         clearInterval: 'readonly',
+        requestAnimationFrame: 'readonly',
         hideFilePicker: 'readonly',
         file: 'readonly',
       },
