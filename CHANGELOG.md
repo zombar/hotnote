@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/zombar/hotnote.io/compare/v1.11.1...v1.12.0) (2025-11-09)
+
+
+### Features
+
+* concurrent file editing ([#48](https://github.com/zombar/hotnote.io/issues/48)) ([853f2bc](https://github.com/zombar/hotnote.io/commit/853f2bcdc9492053e6c4dfd07642b86ed29f18ad))
+
 ## [1.11.1](https://github.com/zombar/hotnote.io/compare/v1.11.0...v1.11.1) (2025-11-09)
 
 
