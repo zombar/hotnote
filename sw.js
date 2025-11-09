@@ -1,30 +1,16 @@
 // Service Worker for hotnote
 // Provides offline functionality by caching app assets
 
-const CACHE_NAME = 'hotnote-v2';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/core.js',
-  '/markdown-editor.js',
-  '/manifest.json',
-  '/favicon.png',
-  '/icon-192.png',
-  '/icon-512.png',
-];
+const CACHE_NAME = 'hotnote-v4';
 
-// Install event - cache app shell
+// Install event - skip pre-caching, rely on runtime caching instead
+// (Production files have hashed names that change with each build)
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
-      .then(() => self.skipWaiting()) // Activate immediately
+    caches.open(CACHE_NAME).then(() => {
+      console.log('Service Worker installed, cache created');
+      return self.skipWaiting(); // Activate immediately
+    })
   );
 });
 

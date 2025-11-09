@@ -15,11 +15,11 @@ dev: ## Start development server
 
 build: ## Build the production Docker image
 	@echo "$(CYAN)Building production image$(RESET)"
-	@docker compose build
+	@docker compose build --no-cache
 
 up: build ## Start all services (use 'make dev' or 'make prod' instead)
 	@echo "$(CYAN)Starting development server on http://localhost:5173$(RESET)"
-	@docker compose up -d
+	@docker compose up --detach --force-recreate
 
 down: ## Stop all services
 	@docker compose down

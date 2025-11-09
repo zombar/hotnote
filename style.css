@@ -800,7 +800,11 @@ button:disabled:hover {
 }
 
 .cm-activeLine {
-  background: transparent;
+  background: rgb(0 212 255 / 8%) !important;
+}
+
+[data-theme='dark'] .cm-activeLine {
+  background: rgb(0 229 255 / 8%) !important;
 }
 
 .cm-selectionBackground {
@@ -811,7 +815,7 @@ button:disabled:hover {
   background: rgb(233 30 140 / 15%) !important;
 }
 
-/* Block cursor with retro flashing animation */
+/* Block cursor with retro flashing animation - pink in both light and dark mode */
 .cm-cursor {
   border-left: none !important;
   width: 0.7em !important;
@@ -820,7 +824,7 @@ button:disabled:hover {
 }
 
 [data-theme='dark'] .cm-cursor {
-  background: #e0e0e0 !important;
+  background: var(--brand-pink) !important;
 }
 
 @keyframes cursor-blink {
