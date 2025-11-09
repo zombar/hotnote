@@ -20,8 +20,8 @@ export default defineConfig({
       },
       // Report on all files, not just tested ones
       all: true,
-      // Include only source files
-      include: ['core.js', 'markdown-editor.js'],
+      // Include only source files (core business logic)
+      include: ['core.js', 'src/editors/editor-manager.js'],
     },
   },
 });
