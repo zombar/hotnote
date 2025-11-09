@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.3](https://github.com/zombar/hotnote.io/compare/v1.1.2...v1.1.3) (2025-11-09)
+
+
+### Bug Fixes
+
+* dns cname record ([90e920a](https://github.com/zombar/hotnote.io/commit/90e920a1a20055430db209c569cf619545f3a07d))
+* infra bugs ([5fbecdf](https://github.com/zombar/hotnote.io/commit/5fbecdf75a8f99c3eeb15c703f825273c63e2d7d))
+* linting ([8be895d](https://github.com/zombar/hotnote.io/commit/8be895d6b442d758c94a3f2691ec49d254f14898))
+
 ## [1.1.2](https://github.com/zombar/hotnote.io/compare/v1.1.1...v1.1.2) (2025-11-09)
 
 
