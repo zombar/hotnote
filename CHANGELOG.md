@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.1.1](https://github.com/zombar/hotnote.io/compare/v1.1.0...v1.1.1) (2025-11-09)
+
+
+### Bug Fixes
+
+* add DNS CNAME record for hotnote.io domain ([ec1c193](https://github.com/zombar/hotnote.io/commit/ec1c1937b475d7050cb7d4dbc1e3645854dd3fab))
+* container image ([d86c6f7](https://github.com/zombar/hotnote.io/commit/d86c6f7cfbf402f92c753ce7bbdd241891eb1ec9))
+* pulumi rollout issues ([4ecb4f1](https://github.com/zombar/hotnote.io/commit/4ecb4f19a37b74432c2b3bf1229aa6dcceacff3b))
+
 ## [1.1.0](https://github.com/zombar/hotnote.io/compare/v1.0.2...v1.1.0) (2025-11-08)
 
 
