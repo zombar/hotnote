@@ -47,14 +47,20 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: nick-fields/retry@v3
         with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            docker buildx build \
+              --push \
+              --platform linux/amd64 \
+              --cache-from type=gha \
+              --cache-to type=gha,mode=max \
+              $(echo "${{ steps.meta.outputs.tags }}" | sed 's/^/--tag /; s/\n/ --tag /g' | tr '\n' ' ') \
+              $(echo "${{ steps.meta.outputs.labels }}" | sed 's/^/--label /; s/\n/ --label /g' | tr '\n' ' ') \
+              .
 
   deploy:
     needs: build-and-push
