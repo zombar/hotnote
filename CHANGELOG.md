@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.2](https://github.com/zombar/hotnote.io/compare/v1.1.1...v1.1.2) (2025-11-09)
+
+
+### Bug Fixes
+
+* ci ([a33ff05](https://github.com/zombar/hotnote.io/commit/a33ff055369145cf3a6a3c4e60075cc4b481cf6b))
+* deploys ([feaa884](https://github.com/zombar/hotnote.io/commit/feaa884e7d34ce9345ea357edee22f8f41726131))
+* tests ([a6d7fdc](https://github.com/zombar/hotnote.io/commit/a6d7fdc1eac2dae6283257599106206a10123928))
+* transpile pulumi ts ([db7e730](https://github.com/zombar/hotnote.io/commit/db7e73016f72463b92c2ddbdf1df01da88571aa2))
+
 ## [1.1.1](https://github.com/zombar/hotnote.io/compare/v1.1.0...v1.1.1) (2025-11-09)
 
 
