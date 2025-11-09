@@ -12,7 +12,7 @@ test.describe('File Picker', () => {
     await expect(filePicker).not.toHaveClass(/hidden/);
 
     // Should show welcome content
-    await expect(page.locator('.welcome-text')).toBeVisible();
+    await expect(page.locator('.welcome-text').first()).toBeVisible();
     await expect(page.locator('#welcome-folder-btn')).toBeVisible();
   });
 

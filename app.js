@@ -22,7 +22,12 @@ import {
   foldKeymap,
 } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import {
+  defaultKeymap,
+  history as codeMirrorHistory,
+  historyKeymap,
+  indentWithTab,
+} from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import {
   autocompletion,
@@ -432,7 +437,7 @@ const initCodeMirrorEditor = async (
     EditorView.lineWrapping,
     highlightActiveLineGutter(),
     highlightSpecialChars(),
-    history(),
+    codeMirrorHistory(),
     foldGutter(),
     drawSelection(),
     dropCursor(),
@@ -725,7 +730,7 @@ const addToHistory = () => {
     const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
     const title = currentFilename || 'hotnote';
 
-    history.pushState(
+    window.history.pushState(
       {
         historyIndex: historyIndex,
         appHistory: true,
@@ -833,7 +838,7 @@ const goBack = async () => {
   const urlPath = pathToUrlParam();
   const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
   const title = currentFilename || 'hotnote';
-  history.replaceState(
+  window.history.replaceState(
     {
       historyIndex: historyIndex,
       appHistory: true,
@@ -903,7 +908,7 @@ const goForward = async () => {
   const urlPath = pathToUrlParam();
   const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
   const title = currentFilename || 'hotnote';
-  history.replaceState(
+  window.history.replaceState(
     {
       historyIndex: historyIndex,
       appHistory: true,
@@ -2541,6 +2546,220 @@ const showWelcomePrompt = () => {
   });
 };
 
+// Version checking for update notifications
+let versionBannerDismissed = false;
+let _versionCheckInterval = null;
+
+const getWelcomeMessage = () => {
+  const messages = [
+    'Welcome to hotnote! We promise not to auto-save your typos... oh wait, we totally will.',
+    'Welcome! Now you can finally edit files without opening a bloated IDE. Your RAM will thank you.',
+    "Welcome aboard! We're like Notepad, but with delusions of grandeur.",
+    'Welcome! Warning: This editor may cause severe productivity. Side effects include getting things done.',
+    'Welcome to hotnote! Where files are edited and your tab hoarding addiction is enabled.',
+    "Welcome! Built by developers who couldn't find the perfect editor, so we made another one.",
+    "Welcome to the club! You're now part of an elite group of people who know this exists.",
+    'Welcome! This editor was coded with coffee, debugged with more coffee, and fueled entirely by caffeine.',
+  ];
+  return messages[Math.floor(Math.random() * messages.length)];
+};
+
+const checkForNewVersion = async () => {
+  // Skip if banner is currently dismissed
+  if (versionBannerDismissed) return false;
+
+  try {
+    const response = await fetch('/version.json?_=' + Date.now(), {
+      cache: 'no-cache',
+    });
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    // eslint-disable-next-line no-undef
+    const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+    const deployedVersion = data.version;
+
+    // Check if deployed version is different from current
+    return currentVersion !== deployedVersion;
+  } catch (err) {
+    console.log('Version check failed:', err);
+    return false;
+  }
+};
+
+const createVersionBanner = (type = 'update', customMessage = null) => {
+  try {
+    // Check if banner already exists
+    if (document.getElementById('version-banner')) return;
+
+    const header = document.querySelector('header');
+    if (!header) {
+      console.warn('Header element not found, skipping version banner creation');
+      return;
+    }
+
+    const banner = document.createElement('div');
+    banner.id = 'version-banner';
+    banner.className = 'version-banner hidden';
+
+    let message, icon, showReloadBtn;
+    if (type === 'welcome') {
+      message = customMessage || getWelcomeMessage();
+      icon = '👋';
+      showReloadBtn = false;
+    } else {
+      message = 'New version available! Refresh to update.';
+      icon = 'ℹ';
+      showReloadBtn = true;
+    }
+
+    banner.innerHTML = `
+      <div class="version-banner-content">
+        <span class="version-banner-message">
+          <span class="version-banner-icon">${icon}</span>
+          ${message}
+        </span>
+        <div class="version-banner-actions">
+          ${
+            showReloadBtn
+              ? `<button id="version-reload-btn" class="version-banner-btn version-banner-btn-primary">
+            Reload
+          </button>`
+              : ''
+          }
+          <button id="version-dismiss-btn" class="version-banner-btn version-banner-btn-secondary">
+            ×
+          </button>
+        </div>
+      </div>
+    `;
+
+    header.appendChild(banner);
+
+    // Add event listeners
+    if (showReloadBtn) {
+      const reloadBtn = document.getElementById('version-reload-btn');
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => {
+          window.location.reload();
+        });
+      }
+    }
+
+    const dismissBtn = document.getElementById('version-dismiss-btn');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        if (type === 'welcome') {
+          localStorage.setItem('hasSeenWelcome', 'true');
+        }
+        hideVersionBanner();
+      });
+    }
+  } catch (err) {
+    console.error('Error creating version banner:', err);
+  }
+};
+
+const showVersionBanner = () => {
+  const banner = document.getElementById('version-banner');
+  if (banner) {
+    banner.classList.remove('hidden');
+    versionBannerDismissed = false;
+  }
+};
+
+const hideVersionBanner = () => {
+  const banner = document.getElementById('version-banner');
+  if (banner) {
+    banner.classList.add('hidden');
+    versionBannerDismissed = true;
+  }
+};
+
+const updateBannerContent = (type = 'update', customMessage = null) => {
+  try {
+    const banner = document.getElementById('version-banner');
+    if (!banner) return;
+
+    let message, icon, showReloadBtn;
+    if (type === 'welcome') {
+      message = customMessage || getWelcomeMessage();
+      icon = '👋';
+      showReloadBtn = false;
+    } else {
+      message = 'New version available! Refresh to update.';
+      icon = 'ℹ';
+      showReloadBtn = true;
+    }
+
+    const content = banner.querySelector('.version-banner-content');
+    if (!content) return;
+
+    content.innerHTML = `
+      <span class="version-banner-message">
+        <span class="version-banner-icon">${icon}</span>
+        ${message}
+      </span>
+      <div class="version-banner-actions">
+        ${
+          showReloadBtn
+            ? `<button id="version-reload-btn" class="version-banner-btn version-banner-btn-primary">
+          Reload
+        </button>`
+            : ''
+        }
+        <button id="version-dismiss-btn" class="version-banner-btn version-banner-btn-secondary">
+          ×
+        </button>
+      </div>
+    `;
+
+    // Re-attach event listeners
+    if (showReloadBtn) {
+      const reloadBtn = document.getElementById('version-reload-btn');
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => {
+          window.location.reload();
+        });
+      }
+    }
+
+    const dismissBtn = document.getElementById('version-dismiss-btn');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        if (type === 'welcome') {
+          localStorage.setItem('hasSeenWelcome', 'true');
+        }
+        hideVersionBanner();
+      });
+    }
+  } catch (err) {
+    console.error('Error updating banner content:', err);
+  }
+};
+
+const _checkAndShowWelcome = () => {
+  const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
+  if (!hasSeenWelcome) {
+    updateBannerContent('welcome');
+    showVersionBanner();
+    return true;
+  }
+  return false;
+};
+
+const performVersionCheck = async () => {
+  try {
+    const hasNewVersion = await checkForNewVersion();
+    if (hasNewVersion) {
+      updateBannerContent('update');
+      showVersionBanner();
+    }
+  } catch (err) {
+    console.error('Error performing version check:', err);
+  }
+};
+
 // Register service worker for offline support (disabled in development)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker
@@ -2568,8 +2787,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   }
 
   // Set initial history state
-  if (!history.state || !history.state.appHistory) {
-    history.replaceState(
+  if (!window.history.state || !window.history.state.appHistory) {
+    window.history.replaceState(
       {
         historyIndex: historyIndex,
         appHistory: true,
@@ -2589,8 +2808,29 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     }
   }, 500);
 
+  // Create version banner (always exists, but hidden by default)
+  try {
+    createVersionBanner('update'); // Create for version updates only
+
+    // Check for new version on initialization
+    performVersionCheck();
+
+    // Set up periodic version checks (every 30 minutes)
+    _versionCheckInterval = setInterval(
+      () => {
+        performVersionCheck();
+      },
+      30 * 60 * 1000
+    );
+  } catch (err) {
+    console.error('Error setting up version banner:', err);
+  }
+
   // Add window focus listener for multi-instance detection
   window.addEventListener('focus', async () => {
+    // Check for version updates when tab regains focus
+    performVersionCheck();
+
     if (!currentDirHandle || !currentFileHandle) return;
 
     try {
