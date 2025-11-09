@@ -351,5 +351,347 @@ describe('FocusManager', () => {
       focusManager.destroy();
       expect(focusManager.getLastFocusTime()).toBe(0);
     });
+
+    it('should clear saved state', () => {
+      // Set up editor with focus detection
+      global.document.activeElement = {
+        classList: {
+          contains: (className) => className === 'ProseMirror',
+        },
+        closest: vi.fn(),
+      };
+
+      // Add methods needed for state capture
+      mockEditorManager.getCursor = vi.fn(() => ({ line: 1, column: 0 }));
+      mockEditorManager.getScrollPosition = vi.fn(() => 0);
+
+      focusManager.setEditors(mockEditorManager, null);
+      focusManager.saveFocusState();
+      expect(focusManager._savedState).not.toBeNull();
+
+      focusManager.destroy();
+      expect(focusManager._savedState).toBeNull();
+    });
+  });
+
+  describe('State Preservation', () => {
+    describe('_captureEditorState()', () => {
+      it('should capture state from EditorManager', () => {
+        const mockCursor = { line: 5, column: 10 };
+        const mockScroll = 200;
+
+        mockEditorManager.getCursor = vi.fn(() => mockCursor);
+        mockEditorManager.getScrollPosition = vi.fn(() => mockScroll);
+
+        focusManager.setEditors(mockEditorManager, null);
+        const state = focusManager._captureEditorState();
+
+        expect(state).toEqual({
+          cursor: mockCursor,
+          scroll: mockScroll,
+        });
+        expect(mockEditorManager.getCursor).toHaveBeenCalledOnce();
+        expect(mockEditorManager.getScrollPosition).toHaveBeenCalledOnce();
+      });
+
+      it('should capture state from CodeMirror editorView', () => {
+        const mockState = {
+          selection: { main: { head: 50 } },
+          doc: {
+            lineAt: (_pos) => ({
+              number: 3,
+              from: 40,
+            }),
+          },
+        };
+
+        const mockView = {
+          state: mockState,
+          scrollDOM: { scrollTop: 150 },
+        };
+
+        focusManager.setEditors(null, mockView);
+        const state = focusManager._captureEditorState();
+
+        expect(state).toEqual({
+          cursor: { line: 2, column: 10 }, // line 3 - 1, pos 50 - from 40
+          scroll: 150,
+        });
+      });
+
+      it('should return null when no editor is available', () => {
+        focusManager.setEditors(null, null);
+        const state = focusManager._captureEditorState();
+        expect(state).toBeNull();
+      });
+
+      it('should handle errors gracefully', () => {
+        mockEditorManager.getCursor = vi.fn(() => {
+          throw new Error('Cursor error');
+        });
+
+        focusManager.setEditors(mockEditorManager, null);
+        const state = focusManager._captureEditorState();
+        expect(state).toBeNull();
+      });
+
+      it('should return null in debug mode when error occurs', () => {
+        focusManager.setDebugMode(true);
+        mockEditorManager.getCursor = vi.fn(() => {
+          throw new Error('Cursor error');
+        });
+
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        focusManager.setEditors(mockEditorManager, null);
+        const state = focusManager._captureEditorState();
+
+        expect(state).toBeNull();
+        expect(consoleSpy).toHaveBeenCalled();
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('_restoreEditorState()', () => {
+      beforeEach(() => {
+        global.requestAnimationFrame = vi.fn((callback) => {
+          callback();
+          return 1;
+        });
+      });
+
+      it('should restore state to EditorManager', () => {
+        const state = {
+          cursor: { line: 5, column: 10 },
+          scroll: 200,
+        };
+
+        mockEditorManager.setCursor = vi.fn();
+        mockEditorManager.setScrollPosition = vi.fn();
+
+        focusManager.setEditors(mockEditorManager, null);
+        focusManager._restoreEditorState(state);
+
+        expect(mockEditorManager.setCursor).toHaveBeenCalledWith(5, 10);
+        expect(mockEditorManager.setScrollPosition).toHaveBeenCalledWith(200);
+      });
+
+      it('should restore state to CodeMirror editorView', () => {
+        const state = {
+          cursor: { line: 2, column: 10 },
+          scroll: 150,
+        };
+
+        const mockDispatch = vi.fn();
+        const mockDoc = {
+          line: (_lineNum) => ({
+            from: 40,
+            length: 50,
+          }),
+        };
+
+        const mockView = {
+          state: { doc: mockDoc },
+          dispatch: mockDispatch,
+          scrollDOM: { scrollTop: 0 },
+        };
+
+        focusManager.setEditors(null, mockView);
+        focusManager._restoreEditorState(state);
+
+        expect(mockDispatch).toHaveBeenCalledWith({
+          selection: { anchor: 50, head: 50 }, // from 40 + column 10
+        });
+        expect(mockView.scrollDOM.scrollTop).toBe(150);
+      });
+
+      it('should not throw when state is null', () => {
+        focusManager.setEditors(mockEditorManager, null);
+        expect(() => focusManager._restoreEditorState(null)).not.toThrow();
+      });
+
+      it('should handle errors in EditorManager restoration', () => {
+        const state = {
+          cursor: { line: 5, column: 10 },
+          scroll: 200,
+        };
+
+        mockEditorManager.setCursor = vi.fn(() => {
+          throw new Error('Restore error');
+        });
+
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        focusManager.setEditors(mockEditorManager, null);
+
+        expect(() => focusManager._restoreEditorState(state)).not.toThrow();
+        expect(consoleSpy).toHaveBeenCalled();
+        consoleSpy.mockRestore();
+      });
+
+      it('should clamp column to line length in CodeMirror', () => {
+        const state = {
+          cursor: { line: 2, column: 100 }, // Beyond line length
+          scroll: 150,
+        };
+
+        const mockDispatch = vi.fn();
+        const mockDoc = {
+          line: (_lineNum) => ({
+            from: 40,
+            length: 20, // Line is only 20 chars
+          }),
+        };
+
+        const mockView = {
+          state: { doc: mockDoc },
+          dispatch: mockDispatch,
+          scrollDOM: { scrollTop: 0 },
+        };
+
+        focusManager.setEditors(null, mockView);
+        focusManager._restoreEditorState(state);
+
+        // Should use Math.min(100, 20) = 20
+        expect(mockDispatch).toHaveBeenCalledWith({
+          selection: { anchor: 60, head: 60 }, // from 40 + length 20
+        });
+      });
+    });
+
+    describe('saveFocusState()', () => {
+      beforeEach(() => {
+        // Mock document.activeElement
+        global.document = {
+          activeElement: null,
+        };
+      });
+
+      it('should save state when editor has focus', () => {
+        const mockCursor = { line: 3, column: 5 };
+        const mockScroll = 100;
+
+        mockEditorManager.getCursor = vi.fn(() => mockCursor);
+        mockEditorManager.getScrollPosition = vi.fn(() => mockScroll);
+
+        // Mock editor having focus
+        global.document.activeElement = {
+          classList: {
+            contains: (className) => className === 'ProseMirror',
+          },
+          closest: vi.fn(),
+        };
+
+        focusManager.setEditors(mockEditorManager, null);
+        focusManager.saveFocusState();
+
+        expect(focusManager._savedState).toEqual({
+          cursor: mockCursor,
+          scroll: mockScroll,
+        });
+      });
+
+      it('should not save state when editor does not have focus', () => {
+        mockEditorManager.getCursor = vi.fn();
+        mockEditorManager.getScrollPosition = vi.fn();
+
+        // Mock non-editor element having focus
+        global.document.activeElement = {
+          classList: {
+            contains: () => false,
+          },
+          closest: () => null,
+        };
+
+        focusManager.setEditors(mockEditorManager, null);
+        focusManager.saveFocusState();
+
+        expect(focusManager._savedState).toBeNull();
+        expect(mockEditorManager.getCursor).not.toHaveBeenCalled();
+      });
+
+      it('should log in debug mode when state is saved', () => {
+        const mockCursor = { line: 3, column: 5 };
+        const mockScroll = 100;
+
+        mockEditorManager.getCursor = vi.fn(() => mockCursor);
+        mockEditorManager.getScrollPosition = vi.fn(() => mockScroll);
+
+        global.document.activeElement = {
+          classList: {
+            contains: (className) => className === 'ProseMirror',
+          },
+          closest: vi.fn(),
+        };
+
+        focusManager.setDebugMode(true);
+        focusManager.setEditors(mockEditorManager, null);
+
+        const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        focusManager.saveFocusState();
+
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Saved focus state'),
+          expect.any(Object)
+        );
+        consoleSpy.mockRestore();
+      });
+    });
+
+    describe('State restoration on focus', () => {
+      beforeEach(() => {
+        global.requestAnimationFrame = vi.fn((callback) => {
+          callback();
+          return 1;
+        });
+      });
+
+      it('should restore saved state when focusing', () => {
+        const savedState = {
+          cursor: { line: 5, column: 10 },
+          scroll: 200,
+        };
+
+        mockEditorManager.focus = vi.fn();
+        mockEditorManager.setCursor = vi.fn();
+        mockEditorManager.setScrollPosition = vi.fn();
+
+        focusManager.setEditors(mockEditorManager, null);
+        focusManager._savedState = savedState;
+
+        focusManager.focusEditor();
+
+        expect(mockEditorManager.focus).toHaveBeenCalled();
+        expect(mockEditorManager.setCursor).toHaveBeenCalledWith(5, 10);
+        expect(mockEditorManager.setScrollPosition).toHaveBeenCalledWith(200);
+      });
+
+      it('should clear saved state after restoring', () => {
+        const savedState = {
+          cursor: { line: 5, column: 10 },
+          scroll: 200,
+        };
+
+        mockEditorManager.focus = vi.fn();
+        mockEditorManager.setCursor = vi.fn();
+        mockEditorManager.setScrollPosition = vi.fn();
+
+        focusManager.setEditors(mockEditorManager, null);
+        focusManager._savedState = savedState;
+
+        focusManager.focusEditor();
+
+        expect(focusManager._savedState).toBeNull();
+      });
+
+      it('should focus without restoring if no saved state', () => {
+        mockEditorManager.focus = vi.fn();
+        mockEditorManager.setCursor = vi.fn();
+
+        focusManager.setEditors(mockEditorManager, null);
+        focusManager.focusEditor();
+
+        expect(mockEditorManager.focus).toHaveBeenCalled();
+        expect(mockEditorManager.setCursor).not.toHaveBeenCalled();
+      });
+    });
   });
 });

@@ -12,6 +12,7 @@ export class FocusManager {
     this.lastFocusTime = 0;
     this.pendingFocus = null;
     this.debugMode = false;
+    this._savedState = null; // Store cursor and scroll state
   }
 
   /**
@@ -70,6 +71,13 @@ export class FocusManager {
           console.warn('[FocusManager] No editor available to focus');
         }
       }
+
+      // Restore saved state if available
+      if (this._savedState) {
+        const stateToRestore = this._savedState;
+        this._savedState = null; // Clear saved state
+        this._restoreEditorState(stateToRestore);
+      }
     } catch (error) {
       console.error('[FocusManager] Error focusing editor:', error);
     }
@@ -104,6 +112,89 @@ export class FocusManager {
     }
 
     return false;
+  }
+
+  /**
+   * Capture current editor state (cursor position and scroll)
+   * @returns {Object|null} State object with cursor and scroll, or null if no editor
+   * @private
+   */
+  _captureEditorState() {
+    try {
+      if (this.editorManager) {
+        // Markdown editor using EditorManager
+        const cursor = this.editorManager.getCursor();
+        const scroll = this.editorManager.getScrollPosition();
+        return { cursor, scroll };
+      } else if (this.editorView) {
+        // CodeMirror editor
+        const pos = this.editorView.state.selection.main.head;
+        const line = this.editorView.state.doc.lineAt(pos);
+        const cursor = {
+          line: line.number - 1, // Convert to 0-based
+          column: pos - line.from,
+        };
+        const scroll = this.editorView.scrollDOM.scrollTop;
+        return { cursor, scroll };
+      }
+    } catch (error) {
+      if (this.debugMode) {
+        console.error('[FocusManager] Error capturing editor state:', error);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Restore editor state (cursor position and scroll)
+   * @param {Object} state - State object with cursor and scroll
+   * @private
+   */
+  _restoreEditorState(state) {
+    if (!state) return;
+
+    try {
+      // eslint-disable-next-line no-undef
+      requestAnimationFrame(() => {
+        try {
+          if (this.editorManager) {
+            // Markdown editor using EditorManager
+            this.editorManager.setCursor(state.cursor.line, state.cursor.column);
+            this.editorManager.setScrollPosition(state.scroll);
+          } else if (this.editorView) {
+            // CodeMirror editor
+            const doc = this.editorView.state.doc;
+            const line = doc.line(state.cursor.line + 1); // Convert to 1-based
+            const pos = line.from + Math.min(state.cursor.column, line.length);
+            this.editorView.dispatch({
+              selection: { anchor: pos, head: pos },
+            });
+            this.editorView.scrollDOM.scrollTop = state.scroll;
+          }
+
+          if (this.debugMode) {
+            console.log('[FocusManager] Restored editor state:', state);
+          }
+        } catch (error) {
+          console.error('[FocusManager] Error restoring editor state:', error);
+        }
+      });
+    } catch (error) {
+      console.error('[FocusManager] Error in state restoration:', error);
+    }
+  }
+
+  /**
+   * Save current focus state before a UI operation that will take focus
+   * Call this before operations like showing dialogs, clicking buttons, etc.
+   */
+  saveFocusState() {
+    if (this.hasEditorFocus()) {
+      this._savedState = this._captureEditorState();
+      if (this.debugMode) {
+        console.log('[FocusManager] Saved focus state:', this._savedState);
+      }
+    }
   }
 
   /**
@@ -152,5 +243,6 @@ export class FocusManager {
     this.editorManager = null;
     this.editorView = null;
     this.lastFocusTime = 0;
+    this._savedState = null;
   }
 }

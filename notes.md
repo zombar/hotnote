@@ -40,8 +40,12 @@
 
 - the autocomplete window needs material ui icons and 'treatment' (follow guidelines on spacing etc)
 
-- focus manager system to ensure site experience is repeatable
-
 - autocomplete / search entries should be displayed least-deep first (with autocomplete or local matches on top)
 
 - if there are autocomplete results in the search / autocomplete window, other search results should hold off for a second or two (we can still be gathering the results in the background, just not displaying them)
+
+- document viewer experience bug: https\://github.com/zombar/hotnote.io/pull/32/
+
+- link handling
+
+- <br />

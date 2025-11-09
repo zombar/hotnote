@@ -627,6 +627,7 @@ const updateBreadcrumb = () => {
       fileItem.addEventListener('click', (e) => {
         e.stopPropagation();
         if (currentDirHandle) {
+          focusManager.saveFocusState();
           showFilePicker(currentDirHandle);
         }
       });
@@ -640,6 +641,7 @@ const updateBreadcrumb = () => {
       placeholder.addEventListener('click', (e) => {
         e.stopPropagation();
         if (currentDirHandle) {
+          focusManager.saveFocusState();
           showFilePicker(currentDirHandle);
         }
       });
@@ -696,6 +698,9 @@ const toggleRichMode = async () => {
 const navigateToPathIndex = async (index) => {
   if (index >= currentPath.length) return;
 
+  // Save focus state before navigation
+  focusManager.saveFocusState();
+
   // Save temp changes if file is dirty
   if (isDirty && currentFileHandle) {
     saveTempChanges();
@@ -706,9 +711,7 @@ const navigateToPathIndex = async (index) => {
   currentDirHandle = currentPath[currentPath.length - 1].handle;
 
   // Don't close the current file - keep it open while showing picker
-
-  // Add to navigation history
-  addToHistory();
+  // Note: Don't add to history - breadcrumb navigation is just for browsing
 
   // Show file picker for this directory
   await showFilePicker(currentDirHandle);
@@ -720,11 +723,18 @@ const addToHistory = () => {
   // Remove any forward history when navigating to a new location
   navigationHistory = navigationHistory.slice(0, historyIndex + 1);
 
+  // Capture current editor state if we have a file open
+  let editorState = null;
+  if (currentFileHandle) {
+    editorState = focusManager._captureEditorState();
+  }
+
   navigationHistory.push({
     path: [...currentPath],
     dirHandle: currentDirHandle,
     fileHandle: currentFileHandle,
     filename: currentFilename,
+    editorState: editorState, // Store cursor and scroll position
   });
 
   historyIndex = navigationHistory.length - 1;
@@ -855,6 +865,15 @@ const goBack = async () => {
   updateLogoState();
   updateNavigationButtons();
 
+  // Restore editor state if available
+  if (state.editorState) {
+    // Use requestAnimationFrame to ensure editor is fully initialized
+    // eslint-disable-next-line no-undef
+    requestAnimationFrame(() => {
+      focusManager._restoreEditorState(state.editorState);
+    });
+  }
+
   // Update URL to match current state
   const urlPath = pathToUrlParam();
   const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
@@ -924,6 +943,15 @@ const goForward = async () => {
   updateBreadcrumb();
   updateLogoState();
   updateNavigationButtons();
+
+  // Restore editor state if available
+  if (state.editorState) {
+    // Use requestAnimationFrame to ensure editor is fully initialized
+    // eslint-disable-next-line no-undef
+    requestAnimationFrame(() => {
+      focusManager._restoreEditorState(state.editorState);
+    });
+  }
 
   // Update URL to match current state
   const urlPath = pathToUrlParam();
@@ -1174,6 +1202,7 @@ const showFilePicker = async (dirHandle) => {
       deleteBtn.appendChild(deleteIcon);
       deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation(); // Prevent opening the file
+        focusManager.saveFocusState();
         await deleteFile(entry);
       });
       item.appendChild(deleteBtn);
@@ -1181,6 +1210,7 @@ const showFilePicker = async (dirHandle) => {
 
     item.addEventListener('click', async (e) => {
       e.stopPropagation();
+      focusManager.saveFocusState();
       if (entry.kind === 'directory') {
         await navigateToDirectory(entry);
       } else {
@@ -1279,8 +1309,8 @@ const navigateToDirectory = async (dirHandle) => {
   currentDirHandle = dirHandle;
 
   // Don't close the current file - keep it open while showing picker
+  // Note: Don't add to history - folder navigation is just for browsing
 
-  addToHistory();
   await showFilePicker(dirHandle);
   updateBreadcrumb();
 };
@@ -2380,10 +2410,34 @@ const initDarkMode = () => {
 };
 
 // Event listeners
-document.getElementById('new-btn').addEventListener('click', newFile);
-document.getElementById('back-btn').addEventListener('click', goBack);
-document.getElementById('forward-btn').addEventListener('click', goForward);
-document.getElementById('folder-up-btn').addEventListener('click', goFolderUp);
+document.getElementById('new-btn').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  newFile();
+});
+document.getElementById('back-btn').addEventListener('click', () => {
+  // Save current editor state to history before navigating
+  if (currentFileHandle && navigationHistory[historyIndex]) {
+    const editorState = focusManager._captureEditorState();
+    if (editorState) {
+      navigationHistory[historyIndex].editorState = editorState;
+    }
+  }
+  goBack();
+});
+document.getElementById('forward-btn').addEventListener('click', () => {
+  // Save current editor state to history before navigating
+  if (currentFileHandle && navigationHistory[historyIndex]) {
+    const editorState = focusManager._captureEditorState();
+    if (editorState) {
+      navigationHistory[historyIndex].editorState = editorState;
+    }
+  }
+  goForward();
+});
+document.getElementById('folder-up-btn').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  goFolderUp();
+});
 // Helper function to animate autosave label
 const animateAutosaveLabel = (shouldHide) => {
   const label = document.getElementById('autosave-label');
@@ -2409,9 +2463,13 @@ document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
 });
 document.getElementById('rich-toggle-btn').addEventListener('click', () => {
   console.log('[RichMode] Rich toggle button clicked');
+  focusManager.saveFocusState();
   toggleRichMode();
 });
-document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
+document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+  focusManager.saveFocusState();
+  toggleDarkMode();
+});
 
 // Browser back/forward button listener
 window.addEventListener('popstate', async (event) => {
@@ -2541,12 +2599,14 @@ const showResumePrompt = (folderName) => {
     `;
 
   document.getElementById('resume-folder-btn').addEventListener('click', () => {
+    focusManager.saveFocusState();
     hideFilePicker();
     openFolder();
   });
 
   document.getElementById('new-folder-btn').addEventListener('click', () => {
     // Clear saved folder name and show welcome prompt
+    focusManager.saveFocusState();
     localStorage.removeItem('lastFolderName');
     hideFilePicker();
     openFolder();
@@ -2571,6 +2631,7 @@ const showWelcomePrompt = () => {
     `;
 
   document.getElementById('welcome-folder-btn').addEventListener('click', () => {
+    focusManager.saveFocusState();
     hideFilePicker();
     openFolder();
   });

@@ -372,4 +372,279 @@ describe('FocusManager Integration Tests', () => {
       consoleSpy.mockRestore();
     });
   });
+
+  describe('State Preservation Integration', () => {
+    let originalRAF;
+
+    beforeEach(() => {
+      // Mock document.activeElement for focus detection
+      // Don't replace global.document, just set activeElement
+      document.activeElement = {
+        classList: {
+          contains: (className) => className === 'ProseMirror',
+        },
+        closest: vi.fn(),
+      };
+
+      // Save original requestAnimationFrame
+      originalRAF = global.requestAnimationFrame;
+
+      // Mock requestAnimationFrame to call immediately by default
+      global.requestAnimationFrame = vi.fn((callback) => {
+        callback();
+        return 1;
+      });
+    });
+
+    afterEach(() => {
+      // Restore original requestAnimationFrame
+      if (originalRAF) {
+        global.requestAnimationFrame = originalRAF;
+      }
+    });
+
+    it('should preserve cursor position through focus cycle with EditorManager', () => {
+      const originalCursor = { line: 10, column: 25 };
+      const originalScroll = 500;
+
+      mockEditorManager.getCursor = vi.fn(() => originalCursor);
+      mockEditorManager.getScrollPosition = vi.fn(() => originalScroll);
+      mockEditorManager.setCursor = vi.fn();
+      mockEditorManager.setScrollPosition = vi.fn();
+
+      focusManager.setEditors(mockEditorManager, null);
+
+      // Step 1: Save state before UI operation
+      focusManager.saveFocusState();
+
+      // Verify state was captured
+      expect(focusManager._savedState).toEqual({
+        cursor: originalCursor,
+        scroll: originalScroll,
+      });
+
+      // Step 2: Focus returns (simulating UI operation completing)
+      focusManager.focusEditor({ reason: 'after-button-click' });
+
+      // Verify cursor and scroll were restored
+      expect(mockEditorManager.setCursor).toHaveBeenCalledWith(10, 25);
+      expect(mockEditorManager.setScrollPosition).toHaveBeenCalledWith(500);
+
+      // Verify state was cleared after restoration
+      expect(focusManager._savedState).toBeNull();
+    });
+
+    it('should preserve cursor position through focus cycle with CodeMirror', () => {
+      const mockDispatch = vi.fn();
+      const mockDoc = {
+        lineAt: (_pos) => ({
+          number: 5,
+          from: 100,
+        }),
+        line: (_lineNum) => ({
+          from: 100,
+          length: 50,
+        }),
+      };
+
+      const mockView = {
+        state: {
+          selection: { main: { head: 120 } },
+          doc: mockDoc,
+        },
+        dispatch: mockDispatch,
+        scrollDOM: { scrollTop: 300 },
+        focus: vi.fn(),
+      };
+
+      focusManager.setEditors(null, mockView);
+
+      // Step 1: Save state before UI operation
+      focusManager.saveFocusState();
+
+      // Verify state was captured
+      expect(focusManager._savedState).toEqual({
+        cursor: { line: 4, column: 20 }, // line 5-1, pos 120-100
+        scroll: 300,
+      });
+
+      // Step 2: Simulate scroll change during UI operation
+      mockView.scrollDOM.scrollTop = 0;
+
+      // Step 3: Focus returns
+      focusManager.focusEditor({ reason: 'after-navigation' });
+
+      // Verify cursor was restored
+      expect(mockDispatch).toHaveBeenCalledWith({
+        selection: { anchor: 120, head: 120 }, // from 100 + column 20
+      });
+
+      // Verify scroll was restored
+      expect(mockView.scrollDOM.scrollTop).toBe(300);
+    });
+
+    it('should handle multiple save/restore cycles', () => {
+      const cursor1 = { line: 1, column: 5 };
+      const cursor2 = { line: 10, column: 20 };
+
+      mockEditorManager.getCursor = vi.fn(() => cursor1);
+      mockEditorManager.getScrollPosition = vi.fn(() => 100);
+      mockEditorManager.setCursor = vi.fn();
+      mockEditorManager.setScrollPosition = vi.fn();
+
+      focusManager.setEditors(mockEditorManager, null);
+
+      // First cycle
+      focusManager.saveFocusState();
+      focusManager.focusEditor();
+
+      expect(mockEditorManager.setCursor).toHaveBeenCalledWith(1, 5);
+
+      // Change cursor position
+      mockEditorManager.getCursor = vi.fn(() => cursor2);
+      mockEditorManager.getScrollPosition = vi.fn(() => 200);
+
+      // Second cycle
+      focusManager.saveFocusState();
+      focusManager.focusEditor();
+
+      expect(mockEditorManager.setCursor).toHaveBeenCalledWith(10, 20);
+      expect(mockEditorManager.setScrollPosition).toHaveBeenCalledWith(200);
+    });
+
+    it('should not save state when editor does not have focus', () => {
+      // Mock non-editor element having focus
+      document.activeElement = {
+        classList: {
+          contains: () => false,
+        },
+        closest: () => null,
+      };
+
+      mockEditorManager.getCursor = vi.fn();
+      mockEditorManager.getScrollPosition = vi.fn();
+
+      focusManager.setEditors(mockEditorManager, null);
+      focusManager.saveFocusState();
+
+      // State should not be captured
+      expect(focusManager._savedState).toBeNull();
+      expect(mockEditorManager.getCursor).not.toHaveBeenCalled();
+    });
+
+    it('should preserve state when focusing immediately', () => {
+      const cursor = { line: 5, column: 10 };
+      const scroll = 200;
+
+      mockEditorManager.getCursor = vi.fn(() => cursor);
+      mockEditorManager.getScrollPosition = vi.fn(() => scroll);
+      mockEditorManager.setCursor = vi.fn();
+      mockEditorManager.setScrollPosition = vi.fn();
+
+      focusManager.setEditors(mockEditorManager, null);
+
+      // Save state
+      focusManager.saveFocusState();
+
+      // Verify state was saved
+      expect(focusManager._savedState).toEqual({
+        cursor,
+        scroll,
+      });
+
+      // Focus immediately (no delay)
+      focusManager.focusEditor({ reason: 'immediate-restore' });
+
+      // State should be restored
+      expect(mockEditorManager.setCursor).toHaveBeenCalledWith(5, 10);
+      expect(mockEditorManager.setScrollPosition).toHaveBeenCalledWith(200);
+
+      // State should be cleared after restoration
+      expect(focusManager._savedState).toBeNull();
+    });
+
+    it('should handle state restoration errors gracefully', () => {
+      const cursor = { line: 5, column: 10 };
+      const scroll = 200;
+
+      mockEditorManager.getCursor = vi.fn(() => cursor);
+      mockEditorManager.getScrollPosition = vi.fn(() => scroll);
+      mockEditorManager.setCursor = vi.fn(() => {
+        throw new Error('Cursor restore failed');
+      });
+
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      focusManager.setEditors(mockEditorManager, null);
+
+      // Save and restore
+      focusManager.saveFocusState();
+      expect(() => focusManager.focusEditor()).not.toThrow();
+
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+
+    it('should preserve state across editor switches', () => {
+      const cursor = { line: 3, column: 8 };
+      const scroll = 150;
+
+      mockEditorManager.getCursor = vi.fn(() => cursor);
+      mockEditorManager.getScrollPosition = vi.fn(() => scroll);
+      mockEditorManager.setCursor = vi.fn();
+      mockEditorManager.setScrollPosition = vi.fn();
+
+      // Start with EditorManager
+      focusManager.setEditors(mockEditorManager, null);
+      focusManager.saveFocusState();
+
+      expect(focusManager._savedState).toEqual({
+        cursor,
+        scroll,
+      });
+
+      // Switch to CodeMirror (simulating mode change)
+      const mockDispatch = vi.fn();
+      const mockDoc = {
+        line: (_lineNum) => ({
+          from: 50,
+          length: 20,
+        }),
+      };
+
+      const mockView = {
+        state: { doc: mockDoc },
+        dispatch: mockDispatch,
+        scrollDOM: { scrollTop: 0 },
+        focus: vi.fn(),
+      };
+
+      focusManager.setEditors(null, mockView);
+
+      // State should still exist but won't restore to different editor type
+      // This documents the current behavior - state is editor-type specific
+      focusManager.focusEditor();
+
+      // CodeMirror restoration will fail because saved state has EditorManager format
+      // but the error should be caught
+      expect(() => focusManager.focusEditor()).not.toThrow();
+    });
+
+    it('should clear saved state on destroy even if not restored', () => {
+      const cursor = { line: 1, column: 0 };
+      const scroll = 0;
+
+      mockEditorManager.getCursor = vi.fn(() => cursor);
+      mockEditorManager.getScrollPosition = vi.fn(() => scroll);
+
+      focusManager.setEditors(mockEditorManager, null);
+      focusManager.saveFocusState();
+
+      expect(focusManager._savedState).not.toBeNull();
+
+      focusManager.destroy();
+
+      expect(focusManager._savedState).toBeNull();
+    });
+  });
 });
