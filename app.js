@@ -1,4 +1,5 @@
 import { EditorManager } from './src/editors/editor-manager.js';
+import { FocusManager } from './src/focus-manager.js';
 import {
   EditorView,
   keymap,
@@ -166,6 +167,7 @@ let rootDirHandle = null; // The initially opened directory (for session file)
 let currentPath = []; // Array of {name, handle} objects
 let editorManager = null; // For markdown files (handles WYSIWYG/source switching)
 let editorView = null; // For non-markdown files (direct CodeMirror)
+const focusManager = new FocusManager(); // Centralized focus management
 let isRestoringSession = false; // Track if we're currently restoring from session
 let lastRestorationTime = 0; // Track when we last restored state to prevent premature saves
 
@@ -417,6 +419,9 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
 
   isDirty = false;
   updateRichToggleButton();
+
+  // Register editors with focus manager
+  focusManager.setEditors(editorManager, editorView);
 };
 
 // Initialize CodeMirror editor
@@ -1174,6 +1179,11 @@ const showFilePicker = async (dirHandle) => {
 // Hide file picker
 window.hideFilePicker = () => {
   document.getElementById('file-picker').classList.add('hidden');
+
+  // Restore focus to editor if a file is currently open
+  if (currentFileHandle) {
+    focusManager.focusEditor({ delay: 50, reason: 'picker-hidden' });
+  }
 };
 
 // Click away to close file picker
@@ -1353,6 +1363,9 @@ const openFileFromPicker = async (fileHandle) => {
     updateBreadcrumb();
     updateLogoState();
     hideFilePicker();
+
+    // Restore focus to editor after opening file
+    focusManager.focusEditor({ delay: 100, reason: 'file-opened' });
 
     addToHistory();
 
@@ -2207,13 +2220,7 @@ const createOrOpenFile = async (filePathOrName) => {
     hideFilePicker();
 
     // Focus the editor after DOM updates complete
-    setTimeout(() => {
-      if (editorManager) {
-        editorManager.focus();
-      } else if (editorView) {
-        editorView.focus();
-      }
-    }, 100);
+    focusManager.focusEditor({ delay: 100, reason: 'new-file' });
   } catch (err) {
     if (err.name !== 'AbortError') {
       console.error('Error creating/opening file:', err);
@@ -2479,21 +2486,13 @@ document.addEventListener('keydown', (e) => {
   }
 
   // Check if editor already has focus
-  if (
-    activeElement &&
-    (activeElement.classList.contains('cm-content') ||
-      activeElement.classList.contains('ProseMirror'))
-  ) {
+  if (focusManager.hasEditorFocus()) {
     return;
   }
 
   // Focus the appropriate editor
   e.preventDefault();
-  if (editorManager) {
-    editorManager.focus();
-  } else if (editorView) {
-    editorView.focus();
-  }
+  focusManager.focusEditor({ reason: 'enter-key' });
 });
 
 // Initialize dark mode on load
