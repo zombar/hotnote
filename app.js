@@ -2740,11 +2740,15 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
             dropdown.style.display = 'none';
             selectedIndex = -1;
           } else {
-            // Close input and focus editor
+            // Close input and file picker
             handleCancel();
-            setTimeout(() => {
-              focusManager.focusEditor({ reason: 'escape-from-navbar' });
-            }, 50);
+            hideFilePicker();
+            // Only focus editor if a document is open
+            if (currentFileHandle) {
+              setTimeout(() => {
+                focusManager.focusEditor({ reason: 'escape-from-navbar' });
+              }, 50);
+            }
           }
         }
       } else {
@@ -2753,11 +2757,15 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
           handleSubmit();
         } else if (e.key === 'Escape') {
           e.preventDefault();
-          // Close input and focus editor
+          // Close input and file picker
           handleCancel();
-          setTimeout(() => {
-            focusManager.focusEditor({ reason: 'escape-from-navbar' });
-          }, 50);
+          hideFilePicker();
+          // Only focus editor if a document is open
+          if (currentFileHandle) {
+            setTimeout(() => {
+              focusManager.focusEditor({ reason: 'escape-from-navbar' });
+            }, 50);
+          }
         }
       }
     });
@@ -3278,8 +3286,15 @@ document.querySelector('header').addEventListener('click', (e) => {
   // Only handle if a folder is currently open
   if (!currentDirHandle) return;
 
-  // Don't trigger if clicking on interactive elements
-  if (e.target.closest('button') || e.target.closest('input') || e.target.closest('label')) {
+  // Don't trigger if clicking on interactive elements or breadcrumb items
+  if (
+    e.target.closest('button') ||
+    e.target.closest('input') ||
+    e.target.closest('label') ||
+    e.target.classList.contains('breadcrumb-item') ||
+    e.target.classList.contains('breadcrumb-input') ||
+    e.target.closest('.autocomplete-container')
+  ) {
     return;
   }
 
@@ -3409,24 +3424,6 @@ document.addEventListener('keydown', async (e) => {
         input.select();
       }
     }
-  }
-});
-
-// Breadcrumb click handler to show file picker
-document.addEventListener('DOMContentLoaded', () => {
-  const breadcrumb = document.getElementById('breadcrumb');
-  if (breadcrumb) {
-    breadcrumb.addEventListener('click', (e) => {
-      // Only handle if not clicking on a specific breadcrumb item or input
-      if (
-        !e.target.classList.contains('breadcrumb-item') &&
-        !e.target.classList.contains('breadcrumb-input') &&
-        !e.target.closest('.autocomplete-container') &&
-        currentDirHandle
-      ) {
-        showFilePicker(currentDirHandle);
-      }
-    });
   }
 });
 
