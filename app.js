@@ -557,7 +557,10 @@ const updateBreadcrumb = () => {
       firstItem.className = 'breadcrumb-item';
       firstItem.textContent = currentPath[0].name;
       firstItem.dataset.index = 0;
-      firstItem.addEventListener('click', () => navigateToPathIndex(0));
+      firstItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigateToPathIndex(0);
+      });
       breadcrumb.appendChild(firstItem);
 
       // Show ellipsis
@@ -574,7 +577,10 @@ const updateBreadcrumb = () => {
         item.className = 'breadcrumb-item';
         item.textContent = segment.name;
         item.dataset.index = i;
-        item.addEventListener('click', () => navigateToPathIndex(i));
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigateToPathIndex(i);
+        });
         breadcrumb.appendChild(item);
       }
     } else {
@@ -586,7 +592,10 @@ const updateBreadcrumb = () => {
         item.dataset.index = index;
 
         // Make all folder items clickable (even the last one)
-        item.addEventListener('click', () => navigateToPathIndex(index));
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigateToPathIndex(index);
+        });
 
         breadcrumb.appendChild(item);
       });
@@ -600,12 +609,26 @@ const updateBreadcrumb = () => {
         fileItem.classList.add('has-changes');
       }
       fileItem.textContent = currentFilename;
+      fileItem.style.cursor = 'pointer';
+      fileItem.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentDirHandle) {
+          showFilePicker(currentDirHandle);
+        }
+      });
       breadcrumb.appendChild(fileItem);
     } else {
       // Show placeholder when folder is open but no file selected
       const placeholder = document.createElement('span');
       placeholder.className = 'breadcrumb-item breadcrumb-placeholder';
       placeholder.textContent = 'filename (/ for search)';
+      placeholder.style.cursor = 'pointer';
+      placeholder.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (currentDirHandle) {
+          showFilePicker(currentDirHandle);
+        }
+      });
       breadcrumb.appendChild(placeholder);
     }
   }
@@ -994,14 +1017,8 @@ const showFilePicker = async (dirHandle) => {
   const picker = document.getElementById('file-picker');
   picker.classList.remove('hidden');
 
-  // Create header
-  picker.innerHTML = `
-        <div class="file-picker-header">
-            <span class="file-picker-path">${currentPath.map((p) => p.name).join(' › ')}</span>
-            <button class="file-picker-close" onclick="hideFilePicker()">close</button>
-        </div>
-        <div class="file-list" id="file-list"></div>
-    `;
+  // Create file list
+  picker.innerHTML = "<div class='file-list' id='file-list'></div>";
 
   const fileList = document.getElementById('file-list');
 
@@ -1069,6 +1086,32 @@ const showFilePicker = async (dirHandle) => {
 window.hideFilePicker = () => {
   document.getElementById('file-picker').classList.add('hidden');
 };
+
+// Click away to close file picker
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('file-picker');
+  if (!picker) return;
+
+  // Check if picker is visible
+  if (picker.classList.contains('hidden')) return;
+
+  // Don't close if click was inside the picker
+  if (picker.contains(e.target)) return;
+
+  // Don't close if click was on breadcrumb (handled by stopPropagation)
+  // Don't close if click was on navigation controls
+  const clickedElement = e.target;
+  if (
+    clickedElement.closest('.breadcrumb') ||
+    clickedElement.closest('.nav-controls') ||
+    clickedElement.closest('.autocomplete-dropdown')
+  ) {
+    return;
+  }
+
+  // Close the picker for clicks outside
+  hideFilePicker();
+});
 
 // Delete a file
 const deleteFile = async (fileHandle) => {
@@ -2240,10 +2283,6 @@ const showResumePrompt = (folderName) => {
   picker.classList.remove('hidden');
 
   picker.innerHTML = `
-        <div class="file-picker-header">
-            <span class="file-picker-path">Welcome back to hotnote</span>
-            <button class="file-picker-close" onclick="hideFilePicker()">close</button>
-        </div>
         <div class="welcome-content">
             <p class="welcome-text">Continue where you left off?</p>
             <div class="welcome-actions">
@@ -2264,12 +2303,6 @@ const showResumePrompt = (folderName) => {
     hideFilePicker();
     openFolder();
   });
-
-  // Add close button handler to forget folder
-  document.querySelector('.file-picker-close').addEventListener('click', () => {
-    localStorage.removeItem('lastFolderName');
-    hideFilePicker();
-  });
 };
 
 const showWelcomePrompt = () => {
@@ -2277,11 +2310,8 @@ const showWelcomePrompt = () => {
   picker.classList.remove('hidden');
 
   picker.innerHTML = `
-        <div class="file-picker-header">
-            <span class="file-picker-path">Welcome to hotnote</span>
-            <button class="file-picker-close" onclick="hideFilePicker()">close</button>
-        </div>
         <div class="welcome-content">
+            <p class="welcome-text">Welcome to hotnote</p>
             <p class="welcome-text">Open a folder to start browsing and editing files.</p>
             <div class="welcome-actions">
                 <button id="welcome-folder-btn" class="welcome-btn">Open Folder</button>
