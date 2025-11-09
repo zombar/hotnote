@@ -1,7 +1,36 @@
-import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view';
+import { EditorManager } from './src/editors/editor-manager.js';
+import {
+  EditorView,
+  keymap,
+  lineNumbers,
+  placeholder,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
+  drawSelection,
+  dropCursor,
+  rectangularSelection,
+  crosshairCursor,
+  highlightActiveLine,
+} from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { syntaxHighlighting, HighlightStyle, StreamLanguage } from '@codemirror/language';
+import {
+  syntaxHighlighting,
+  HighlightStyle,
+  StreamLanguage,
+  bracketMatching,
+  foldGutter,
+  foldKeymap,
+} from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
+import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
+import {
+  autocompletion,
+  completionKeymap,
+  closeBrackets,
+  closeBracketsKeymap,
+} from '@codemirror/autocomplete';
+import { lintKeymap } from '@codemirror/lint';
 import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { html } from '@codemirror/lang-html';
@@ -20,13 +49,6 @@ import { ruby as rubyMode } from '@codemirror/legacy-modes/mode/ruby';
 import { groovy as groovyMode } from '@codemirror/legacy-modes/mode/groovy';
 import { nginx as nginxMode } from '@codemirror/legacy-modes/mode/nginx';
 import { python as pythonMode } from '@codemirror/legacy-modes/mode/python';
-import {
-  initMarkdownEditor,
-  destroyMarkdownEditor,
-  getMarkdownContent,
-  isMarkdownEditorActive,
-  focusMarkdownEditor,
-} from './markdown-editor.js';
 
 // File System Adapter - Browser File System Access API
 const FileSystemAdapter = {
@@ -137,8 +159,10 @@ let currentFilename = 'untitled';
 let currentDirHandle = null;
 let rootDirHandle = null; // The initially opened directory (for session file)
 let currentPath = []; // Array of {name, handle} objects
-let editorView = null;
-let isRichMode = false; // Track if rich markdown editor is active
+let editorManager = null; // For markdown files (handles WYSIWYG/source switching)
+let editorView = null; // For non-markdown files (direct CodeMirror)
+let isRestoringSession = false; // Track if we're currently restoring from session
+let lastRestorationTime = 0; // Track when we last restored state to prevent premature saves
 
 // Navigation history
 let navigationHistory = [];
@@ -316,65 +340,73 @@ const isMarkdownFile = (filename) => {
 
 // Helper: Get current editor content
 const getEditorContent = () => {
-  if (isRichMode && isMarkdownEditorActive()) {
-    return getMarkdownContent();
+  if (editorManager) {
+    return editorManager.getContent();
   } else if (editorView) {
     return editorView.state.doc.toString();
   }
   return '';
 };
 
-// Initialize editor (CodeMirror or Milkdown based on file type and mode)
+// Initialize editor (EditorManager for markdown, CodeMirror for other files)
 const initEditor = async (initialContent = '', filename = 'untitled') => {
   // Store original content for undo detection
   originalContent = initialContent;
 
-  // Clear both editors first
+  // Clear old editors
+  if (editorManager) {
+    editorManager.destroy();
+    editorManager = null;
+  }
   if (editorView) {
     editorView.destroy();
     editorView = null;
   }
-  if (isMarkdownEditorActive()) {
-    destroyMarkdownEditor();
-  }
 
-  // Determine if we should use rich markdown editor
-  const shouldUseRichEditor = isMarkdownFile(filename) && isRichMode;
+  const editorContainer = document.getElementById('editor');
+  editorContainer.innerHTML = ''; // Clear container
 
-  if (shouldUseRichEditor) {
-    // Initialize Milkdown for markdown files
-    const editorContainer = document.getElementById('editor');
-    editorContainer.innerHTML = ''; // Clear container
-
-    try {
-      await initMarkdownEditor(editorContainer, initialContent, (content) => {
-        // Handle content changes
-        const currentContent = content;
-
-        if (currentContent === originalContent) {
-          if (isDirty) {
-            isDirty = false;
-            const key = getFilePathKey();
-            if (key) {
-              clearTempChanges(key);
-            }
-            updateBreadcrumb();
-          }
-        } else {
-          if (!isDirty) {
-            isDirty = true;
-            updateBreadcrumb();
-          }
+  // onChange callback for content changes
+  const handleContentChange = (content) => {
+    if (content === originalContent) {
+      if (isDirty) {
+        isDirty = false;
+        const key = getFilePathKey();
+        if (key) {
+          clearTempChanges(key);
         }
-      });
-    } catch (error) {
-      console.error('Failed to initialize Milkdown, falling back to CodeMirror:', error);
-      // Fall back to CodeMirror if Milkdown fails
-      await initCodeMirrorEditor(initialContent, filename);
+        updateBreadcrumb();
+      }
+    } else {
+      if (!isDirty) {
+        isDirty = true;
+        updateBreadcrumb();
+      }
     }
+    // Save session state on content change
+    debouncedSaveEditorState();
+  };
+
+  if (isMarkdownFile(filename)) {
+    // Use EditorManager for markdown files
+    // Mode will be determined by session restore or default to 'wysiwyg'
+    const initialMode = isRestoringSession
+      ? localStorage.getItem(`mode_${filename}`) || 'wysiwyg'
+      : 'wysiwyg';
+    console.log('[Editor] Initializing EditorManager for markdown. Initial mode:', initialMode);
+
+    editorManager = new EditorManager(
+      editorContainer,
+      initialMode,
+      initialContent,
+      handleContentChange
+    );
+    await editorManager.ready();
+    console.log('[Editor] EditorManager initialized');
   } else {
-    // Initialize CodeMirror for all other files
-    await initCodeMirrorEditor(initialContent, filename);
+    // Use CodeMirror directly for non-markdown files
+    console.log('[Editor] Initializing CodeMirror for non-markdown file');
+    await initCodeMirrorEditor(initialContent, filename, handleContentChange);
   }
 
   isDirty = false;
@@ -382,7 +414,11 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
 };
 
 // Initialize CodeMirror editor
-const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') => {
+const initCodeMirrorEditor = async (
+  initialContent = '',
+  filename = 'untitled',
+  onChange = null
+) => {
   // Use appropriate highlight style based on current theme
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const highlightStyle = isDark ? brandHighlightStyleDark : brandHighlightStyle;
@@ -393,8 +429,30 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
   const extensions = [
     lineNumbers(),
     EditorView.lineWrapping,
+    highlightActiveLineGutter(),
+    highlightSpecialChars(),
+    history(),
+    foldGutter(),
+    drawSelection(),
+    dropCursor(),
+    EditorState.allowMultipleSelections.of(true),
     syntaxHighlighting(highlightStyle),
+    bracketMatching(),
+    closeBrackets(),
+    autocompletion(),
+    rectangularSelection(),
+    crosshairCursor(),
+    highlightActiveLine(),
+    highlightSelectionMatches(),
     keymap.of([
+      ...closeBracketsKeymap,
+      ...defaultKeymap,
+      ...searchKeymap,
+      ...historyKeymap,
+      ...foldKeymap,
+      ...completionKeymap,
+      ...lintKeymap,
+      indentWithTab,
       {
         key: 'Mod-s',
         run: () => {
@@ -421,23 +479,9 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
       if (update.docChanged) {
         const currentContent = update.state.doc.toString();
 
-        // Check if we've undone back to original content
-        if (currentContent === originalContent) {
-          if (isDirty) {
-            isDirty = false;
-            // Clear temp storage
-            const key = getFilePathKey();
-            if (key) {
-              clearTempChanges(key);
-            }
-            updateBreadcrumb();
-          }
-        } else {
-          // Content differs from original
-          if (!isDirty) {
-            isDirty = true;
-            updateBreadcrumb();
-          }
+        // Call onChange callback if provided
+        if (onChange) {
+          onChange(currentContent);
         }
       }
 
@@ -582,10 +626,12 @@ const updateBreadcrumb = () => {
 const updateRichToggleButton = () => {
   const richToggleBtn = document.getElementById('rich-toggle-btn');
 
-  if (isMarkdownFile(currentFilename)) {
+  if (isMarkdownFile(currentFilename) && editorManager) {
     richToggleBtn.classList.remove('hidden');
-    richToggleBtn.textContent = isRichMode ? 'source' : 'rich';
-    richToggleBtn.title = isRichMode ? 'Switch to source mode' : 'Switch to rich mode';
+    const currentMode = editorManager.getMode();
+    richToggleBtn.textContent = currentMode === 'wysiwyg' ? 'source' : 'rich';
+    richToggleBtn.title =
+      currentMode === 'wysiwyg' ? 'Switch to source mode' : 'Switch to rich mode';
   } else {
     richToggleBtn.classList.add('hidden');
   }
@@ -593,16 +639,17 @@ const updateRichToggleButton = () => {
 
 // Toggle between rich and source mode for markdown files
 const toggleRichMode = async () => {
-  if (!isMarkdownFile(currentFilename)) return;
+  if (!isMarkdownFile(currentFilename) || !editorManager) {
+    console.log('[RichMode] Not a markdown file or no editor manager, skipping toggle');
+    return;
+  }
 
-  // Save current content before switching
-  const currentContent = getEditorContent();
+  console.log('[RichMode] Toggling mode via EditorManager');
+  await editorManager.toggleMode();
 
-  // Toggle mode
-  isRichMode = !isRichMode;
-
-  // Reinitialize editor with new mode
-  await initEditor(currentContent, currentFilename);
+  // Save mode preference to localStorage
+  const newMode = editorManager.getMode();
+  localStorage.setItem(`mode_${currentFilename}`, newMode);
 
   updateRichToggleButton();
 };
@@ -684,13 +731,6 @@ const goBack = async () => {
     const pathKey = getFilePathKey();
     const tempContent = loadTempChanges(pathKey);
 
-    // Set rich mode for markdown files
-    if (isMarkdownFile(currentFilename)) {
-      isRichMode = true;
-    } else {
-      isRichMode = false;
-    }
-
     // Initialize with file content (sets originalContent)
     await initEditor(fileContent, currentFilename);
 
@@ -700,7 +740,7 @@ const goBack = async () => {
         editorView.dispatch({
           changes: { from: 0, to: editorView.state.doc.length, insert: tempContent },
         });
-      } else if (isRichMode && isMarkdownFile(currentFilename)) {
+      } else if (editorManager && isMarkdownFile(currentFilename)) {
         await initEditor(tempContent, currentFilename);
       }
       isDirty = true;
@@ -748,13 +788,6 @@ const goForward = async () => {
     const pathKey = getFilePathKey();
     const tempContent = loadTempChanges(pathKey);
 
-    // Set rich mode for markdown files
-    if (isMarkdownFile(currentFilename)) {
-      isRichMode = true;
-    } else {
-      isRichMode = false;
-    }
-
     // Initialize with file content (sets originalContent)
     await initEditor(fileContent, currentFilename);
 
@@ -764,7 +797,7 @@ const goForward = async () => {
         editorView.dispatch({
           changes: { from: 0, to: editorView.state.doc.length, insert: tempContent },
         });
-      } else if (isRichMode && isMarkdownFile(currentFilename)) {
+      } else if (editorManager && isMarkdownFile(currentFilename)) {
         await initEditor(tempContent, currentFilename);
       }
       isDirty = true;
@@ -860,16 +893,63 @@ const openFolder = async () => {
     // Try to restore last open file
     if (sessionData.session && sessionData.session.lastOpenFile) {
       const lastFile = sessionData.session.lastOpenFile;
-      console.log('Attempting to restore last file:', lastFile.path);
+      console.log('[Session] Attempting to restore last file:', lastFile.path);
+      console.log('[Session] Session data for file:', JSON.stringify(lastFile, null, 2));
+
+      // Set flag to indicate we're restoring from session
+      isRestoringSession = true;
+
+      // Save editor mode preference to localStorage so initEditor can use it
+      if (lastFile.editorMode !== undefined) {
+        const filename = lastFile.path.split('/').pop();
+        localStorage.setItem(`mode_${filename}`, lastFile.editorMode);
+        console.log('[Session] Saved mode preference for restoration:', lastFile.editorMode);
+      }
+
       const opened = await openFileByPath(lastFile.path);
       console.log('File opened successfully:', opened);
+
+      // Clear the flag
+      isRestoringSession = false;
 
       if (opened) {
         fileRestored = true;
 
-        // Restore editor state after a brief delay to let editor initialize
-        setTimeout(() => {
-          if (editorView) {
+        // Wait for editor to be ready, then restore cursor and scroll
+        setTimeout(async () => {
+          if (editorManager) {
+            // Markdown file - using EditorManager
+            console.log('[Session] Restoring EditorManager state');
+            await editorManager.ready();
+
+            // Restore cursor and scroll position
+            if (lastFile.cursorLine !== undefined && lastFile.cursorColumn !== undefined) {
+              editorManager.setCursor(lastFile.cursorLine, lastFile.cursorColumn);
+            }
+            if (lastFile.scrollTop !== undefined) {
+              editorManager.setScrollPosition(lastFile.scrollTop);
+            }
+            editorManager.focus();
+
+            console.log('[Session] EditorManager state restored:', {
+              line: lastFile.cursorLine,
+              column: lastFile.cursorColumn,
+              scroll: lastFile.scrollTop,
+            });
+          } else if (editorView) {
+            // Non-markdown file - using CodeMirror
+            console.log('[Session] Restoring CodeMirror state');
+
+            // Restore cursor position
+            if (lastFile.cursorLine !== undefined && lastFile.cursorColumn !== undefined) {
+              const doc = editorView.state.doc;
+              const line = doc.line(lastFile.cursorLine + 1); // Convert to 1-based
+              const pos = line.from + Math.min(lastFile.cursorColumn, line.length);
+              editorView.dispatch({
+                selection: { anchor: pos, head: pos },
+              });
+            }
+
             // Restore scroll position
             if (lastFile.scrollTop !== undefined) {
               editorView.scrollDOM.scrollTop = lastFile.scrollTop;
@@ -877,29 +957,17 @@ const openFolder = async () => {
             if (lastFile.scrollLeft !== undefined) {
               editorView.scrollDOM.scrollLeft = lastFile.scrollLeft;
             }
-            // Restore cursor position
-            if (lastFile.cursorPosition !== undefined) {
-              try {
-                editorView.dispatch({
-                  selection: { anchor: lastFile.cursorPosition, head: lastFile.cursorPosition },
-                });
-              } catch (err) {
-                console.error('Error restoring cursor position:', err);
-              }
-            }
-          } else if (isMarkdownEditorActive()) {
-            // Restore scroll for Milkdown
-            const milkdownScroller = document.querySelector('.milkdown');
-            if (milkdownScroller && lastFile.scrollTop !== undefined) {
-              milkdownScroller.scrollTop = lastFile.scrollTop;
-            }
+            editorView.focus();
+
+            console.log('[Session] CodeMirror state restored');
           }
 
-          // Restore rich mode for markdown files
-          if (lastFile.isRichMode !== undefined && isMarkdownFile(currentFilename)) {
-            isRichMode = lastFile.isRichMode;
-            updateRichToggleButton();
-          }
+          // Update UI
+          updateRichToggleButton();
+
+          // Mark restoration time to prevent premature saves
+          lastRestorationTime = Date.now();
+          console.log('[Session] Restoration complete, blocking saves for 1 second');
         }, 100);
       }
     }
@@ -1113,13 +1181,6 @@ const openFileFromPicker = async (fileHandle) => {
     currentFileHandle = fileHandle;
     currentFilename = fileHandle.name;
 
-    // Set rich mode to true for markdown files by default
-    if (isMarkdownFile(fileHandle.name)) {
-      isRichMode = true;
-    } else {
-      isRichMode = false;
-    }
-
     // Always load the original file content from disk
     const fileContent = await FileSystemAdapter.readFile(fileHandle);
 
@@ -1147,10 +1208,9 @@ const openFileFromPicker = async (fileHandle) => {
           changes: { from: 0, to: editorView.state.doc.length, insert: tempContent },
         });
       }
-      // Note: For Milkdown, we pass tempContent directly to initEditor above
-      // So we need to reinitialize with tempContent for Milkdown
-      if (isRichMode && isMarkdownFile(file.name)) {
-        await initEditor(tempContent, file.name);
+      // Note: For markdown with EditorManager, we reinitialize with tempContent
+      if (editorManager && isMarkdownFile(fileHandle.name)) {
+        await initEditor(tempContent, fileHandle.name);
       }
       isDirty = true;
     }
@@ -1172,12 +1232,35 @@ const openFileFromPicker = async (fileHandle) => {
               sessionData = createEmptySession(currentDirHandle.name);
             }
 
+            // Get cursor and scroll from the appropriate editor
+            let cursorLine = 0;
+            let cursorColumn = 0;
+            let scrollTop = 0;
+            let scrollLeft = 0;
+            let editorMode = 'source';
+
+            if (editorManager) {
+              const cursor = editorManager.getCursor();
+              cursorLine = cursor.line;
+              cursorColumn = cursor.column;
+              scrollTop = editorManager.getScrollPosition();
+              editorMode = editorManager.getMode();
+            } else if (editorView) {
+              const pos = editorView.state.selection.main.head;
+              const line = editorView.state.doc.lineAt(pos);
+              cursorLine = line.number - 1;
+              cursorColumn = pos - line.from;
+              scrollTop = editorView.scrollDOM.scrollTop;
+              scrollLeft = editorView.scrollDOM.scrollLeft;
+            }
+
             sessionData.session.lastOpenFile = {
               path: filePath,
-              cursorPosition: editorView ? editorView.state.selection.main.head : 0,
-              scrollTop: editorView ? editorView.scrollDOM.scrollTop : 0,
-              scrollLeft: editorView ? editorView.scrollDOM.scrollLeft : 0,
-              isRichMode: isRichMode,
+              cursorLine: cursorLine,
+              cursorColumn: cursorColumn,
+              scrollTop: scrollTop,
+              scrollLeft: scrollLeft,
+              editorMode: editorMode,
             };
 
             await saveSessionFile(rootDirHandle, sessionData);
@@ -1287,11 +1370,37 @@ const debounce = (func, wait) => {
 
 // Save current editor state to session file (debounced)
 const saveEditorStateToSession = async () => {
-  if (!currentDirHandle || !currentFileHandle) return;
+  // Don't save if we just restored state (wait for scroll animation to complete)
+  // Block for 1 second (animation is 250ms, plus margin for safety)
+  const timeSinceRestoration = Date.now() - lastRestorationTime;
+  console.log(
+    '[Session] Save check: lastRestorationTime=',
+    lastRestorationTime,
+    'timeSince=',
+    timeSinceRestoration,
+    'willBlock=',
+    lastRestorationTime > 0 && timeSinceRestoration < 1000
+  );
+  if (lastRestorationTime > 0 && timeSinceRestoration < 1000) {
+    console.log(
+      '[Session] Skipping save - scroll animation in progress (',
+      timeSinceRestoration,
+      'ms since restoration)'
+    );
+    return;
+  }
+
+  if (!currentDirHandle || !currentFileHandle) {
+    console.log('[Session] Skipping save - no dir or file handle');
+    return;
+  }
 
   try {
     const filePath = getRelativeFilePath();
-    if (!filePath) return;
+    if (!filePath) {
+      console.log('[Session] Skipping save - no file path');
+      return;
+    }
 
     let sessionData = await loadSessionFile(currentDirHandle);
     if (!sessionData) {
@@ -1299,30 +1408,60 @@ const saveEditorStateToSession = async () => {
     }
 
     // Get current editor state
-    let cursorPosition = 0;
+    let cursorLine = 0;
+    let cursorColumn = 0;
     let scrollTop = 0;
     let scrollLeft = 0;
+    let editorMode = 'source'; // Default for non-markdown files
 
-    if (editorView) {
-      cursorPosition = editorView.state.selection.main.head;
+    console.log(
+      '[Session] saveEditorStateToSession called. editorManager:',
+      !!editorManager,
+      'editorView:',
+      !!editorView
+    );
+
+    if (editorManager) {
+      // Markdown file using EditorManager
+      const cursor = editorManager.getCursor();
+      cursorLine = cursor.line;
+      cursorColumn = cursor.column;
+      scrollTop = editorManager.getScrollPosition();
+      editorMode = editorManager.getMode();
+      console.log('[Session] Saving EditorManager state:', {
+        cursorLine,
+        cursorColumn,
+        scrollTop,
+        editorMode,
+      });
+    } else if (editorView) {
+      // Non-markdown file using CodeMirror
+      const pos = editorView.state.selection.main.head;
+      const line = editorView.state.doc.lineAt(pos);
+      cursorLine = line.number - 1; // Convert to 0-based
+      cursorColumn = pos - line.from;
       scrollTop = editorView.scrollDOM.scrollTop;
       scrollLeft = editorView.scrollDOM.scrollLeft;
-    } else if (isMarkdownEditorActive()) {
-      const milkdownScroller = document.querySelector('.milkdown');
-      if (milkdownScroller) {
-        scrollTop = milkdownScroller.scrollTop;
-        scrollLeft = milkdownScroller.scrollLeft;
-      }
+      console.log('[Session] Saving CodeMirror state:', {
+        cursorLine,
+        cursorColumn,
+        scrollTop,
+        scrollLeft,
+      });
+    } else {
+      console.log('[Session] No editor active, saving defaults');
     }
 
     sessionData.session.lastOpenFile = {
       path: filePath,
-      cursorPosition: cursorPosition,
+      cursorLine: cursorLine,
+      cursorColumn: cursorColumn,
       scrollTop: scrollTop,
       scrollLeft: scrollLeft,
-      isRichMode: isRichMode,
+      editorMode: editorMode,
     };
 
+    console.log('[Session] Saving session file with data:', sessionData.session.lastOpenFile);
     await saveSessionFile(rootDirHandle, sessionData);
   } catch (err) {
     console.error('Error saving editor state:', err);
@@ -1860,13 +1999,6 @@ const createOrOpenFile = async (filePathOrName) => {
     currentFileHandle = fileHandle;
     currentFilename = actualFilename;
 
-    // Set rich mode for markdown files
-    if (isMarkdownFile(actualFilename)) {
-      isRichMode = true;
-    } else {
-      isRichMode = false;
-    }
-
     // If file exists, open it instead of creating new
     if (fileExists) {
       const content = await FileSystemAdapter.readFile(fileHandle);
@@ -1887,8 +2019,8 @@ const createOrOpenFile = async (filePathOrName) => {
 
     // Focus the editor after DOM updates complete
     setTimeout(() => {
-      if (isMarkdownEditorActive()) {
-        focusMarkdownEditor();
+      if (editorManager) {
+        editorManager.focus();
       } else if (editorView) {
         editorView.focus();
       }
@@ -1976,7 +2108,7 @@ const toggleDarkMode = async () => {
   }
 
   // Reinitialize editor with new theme colors
-  if (editorView || isMarkdownEditorActive()) {
+  if (editorView || editorManager) {
     const currentContent = getEditorContent();
 
     // Save scroll position
@@ -1986,12 +2118,8 @@ const toggleDarkMode = async () => {
       const scroller = editorView.scrollDOM;
       scrollTop = scroller.scrollTop;
       scrollLeft = scroller.scrollLeft;
-    } else if (isMarkdownEditorActive()) {
-      const milkdownScroller = document.querySelector('.milkdown');
-      if (milkdownScroller) {
-        scrollTop = milkdownScroller.scrollTop;
-        scrollLeft = milkdownScroller.scrollLeft;
-      }
+    } else if (editorManager) {
+      scrollTop = editorManager.getScrollPosition();
     }
 
     await initEditor(currentContent, currentFilename);
@@ -2001,12 +2129,8 @@ const toggleDarkMode = async () => {
       if (editorView) {
         editorView.scrollDOM.scrollTop = scrollTop;
         editorView.scrollDOM.scrollLeft = scrollLeft;
-      } else if (isMarkdownEditorActive()) {
-        const milkdownScroller = document.querySelector('.milkdown');
-        if (milkdownScroller) {
-          milkdownScroller.scrollTop = scrollTop;
-          milkdownScroller.scrollLeft = scrollLeft;
-        }
+      } else if (editorManager) {
+        editorManager.setScrollPosition(scrollTop);
       }
     }, 0);
   }
@@ -2059,7 +2183,10 @@ document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
   toggleAutosave(e.target.checked);
   animateAutosaveLabel(e.target.checked);
 });
-document.getElementById('rich-toggle-btn').addEventListener('click', toggleRichMode);
+document.getElementById('rich-toggle-btn').addEventListener('click', () => {
+  console.log('[RichMode] Rich toggle button clicked');
+  toggleRichMode();
+});
 document.getElementById('dark-mode-toggle').addEventListener('click', toggleDarkMode);
 
 // Global keyboard listener for quick file creation/search
@@ -2099,8 +2226,8 @@ document.addEventListener('keydown', async (e) => {
 // Initialize dark mode on load
 initDarkMode();
 
-// Register service worker for PWA
-if ('serviceWorker' in navigator) {
+// Register service worker for PWA (disabled in development)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('/sw.js').catch((err) => {
     console.log('Service worker registration failed:', err);
   });
@@ -2168,8 +2295,8 @@ const showWelcomePrompt = () => {
   });
 };
 
-// Register service worker for offline support
-if ('serviceWorker' in navigator) {
+// Register service worker for offline support (disabled in development)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker
     .register('/sw.js')
     .then((registration) => {
