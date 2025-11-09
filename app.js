@@ -2334,11 +2334,44 @@ document.addEventListener('keydown', async (e) => {
 
   // Trigger quick file creation/search with the typed character
   e.preventDefault();
-  // For period key, just focus the input without pre-filling
-  if (e.key === '.') {
-    await quickFileCreate('');
-  } else {
-    await quickFileCreate(e.key);
+  await quickFileCreate(e.key);
+});
+
+// Global Enter key listener to focus editor
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') {
+    return;
+  }
+
+  // Don't trigger if navbar input is showing
+  if (document.querySelector('.breadcrumb-input')) {
+    return;
+  }
+
+  // Don't trigger if user is typing in an input field or textarea
+  const activeElement = document.activeElement;
+  if (
+    activeElement &&
+    (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')
+  ) {
+    return;
+  }
+
+  // Check if editor already has focus
+  if (
+    activeElement &&
+    (activeElement.classList.contains('cm-content') ||
+      activeElement.classList.contains('ProseMirror'))
+  ) {
+    return;
+  }
+
+  // Focus the appropriate editor
+  e.preventDefault();
+  if (editorManager) {
+    editorManager.focus();
+  } else if (editorView) {
+    editorView.focus();
   }
 });
 
