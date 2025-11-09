@@ -70,13 +70,13 @@ jobs:
           node-version: '20'
 
       - name: Install Pulumi dependencies
-        working-directory: infrastructure
+        working-directory: infra
         run: npm install
 
       - name: Deploy with Pulumi
         uses: pulumi/actions@v5
         with:
-          work-dir: ./infrastructure
+          work-dir: ./infra
           command: up
           stack-name: hotnote
         env:

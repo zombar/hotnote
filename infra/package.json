@@ -1,5 +1,5 @@
 {
-  "name": "hotnote-infrastructure",
+  "name": "hotnote-infra",
   "version": "1.0.0",
   "description": "Pulumi infrastructure for hotnote deployment",
   "main": "index.ts",
