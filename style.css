@@ -777,13 +777,14 @@ button:disabled:hover {
 }
 
 .file-item {
-  padding: 0.625rem 1.5rem;
+  padding: 0 16px;
+  min-height: 40px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background 0.15s ease;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
   position: relative;
 }
 
@@ -796,19 +797,25 @@ button:disabled:hover {
 }
 
 .file-item-icon {
-  font-size: 1.125rem;
-  width: 1.25rem;
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
   text-align: center;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .file-item-name {
-  font-size: 0.875rem;
+  font-size: 16px;
   color: var(--text-primary);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-item.is-directory {
@@ -832,18 +839,59 @@ button:disabled:hover {
   top: -1px;
 }
 
+.file-item-metadata {
+  font-size: 14px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  margin-left: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.file-item:hover .file-item-metadata {
+  opacity: 0.9;
+}
+
+[data-theme='dark'] .file-item-metadata {
+  opacity: 0.8;
+}
+
+[data-theme='dark'] .file-item:hover .file-item-metadata {
+  opacity: 1;
+}
+
+.file-item-lock {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
 .file-item-delete {
   opacity: 0;
-  padding: 0.1062rem 0.3187rem;
-  font-size: 0.5844rem;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
-  border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
   margin-left: auto;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-item-delete .material-symbols-outlined {
+  font-size: 24px;
 }
 
 .file-item:hover .file-item-delete {
@@ -851,14 +899,136 @@ button:disabled:hover {
 }
 
 .file-item-delete:hover {
-  background: #f44;
-  border-color: #f44;
-  color: white;
-  transform: scale(1.05);
+  background: rgb(244 68 68 / 10%);
+  color: #f44;
+  border-radius: 50%;
 }
 
 .file-item-delete:active {
-  transform: scale(0.95);
+  transform: scale(0.9);
+}
+
+.file-item-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.file-item-delete-confirm-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.file-item-delete-confirm-btn {
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.file-item-delete-confirm-btn .material-symbols-outlined {
+  font-size: 24px;
+}
+
+.file-item-delete-confirm-btn.confirm {
+  color: #4caf50;
+}
+
+.file-item-delete-confirm-btn.confirm:hover {
+  background: rgb(76 175 80 / 10%);
+  border-radius: 50%;
+}
+
+.file-item-delete-confirm-btn.cancel {
+  color: var(--text-secondary);
+}
+
+.file-item-delete-confirm-btn.cancel:hover {
+  background: rgb(0 0 0 / 5%);
+  border-radius: 50%;
+}
+
+[data-theme='dark'] .file-item-delete-confirm-btn.cancel:hover {
+  background: rgb(255 255 255 / 5%);
+}
+
+.file-item-delete-confirm-btn:active {
+  transform: scale(0.9);
+}
+
+/* Snackbar for undo notifications */
+.snackbar {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  background: #323232;
+  color: white;
+  padding: 14px 16px;
+  border-radius: 4px;
+  box-shadow:
+    0 3px 5px -1px rgb(0 0 0 / 20%),
+    0 6px 10px 0 rgb(0 0 0 / 14%),
+    0 1px 18px 0 rgb(0 0 0 / 12%);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  z-index: 1000;
+  font-size: 14px;
+  min-width: 288px;
+  max-width: 568px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  pointer-events: none;
+}
+
+.snackbar.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+[data-theme='dark'] .snackbar {
+  background: #3e3e3e;
+}
+
+.snackbar-message {
+  flex: 1;
+}
+
+.snackbar-action {
+  background: transparent;
+  border: none;
+  color: #4caf50;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 8px;
+  margin: -8px -4px -8px 0;
+  letter-spacing: 0.5px;
+  transition: background 0.15s ease;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.snackbar-action:hover {
+  background: rgb(76 175 80 / 10%);
+}
+
+.snackbar-action:active {
+  background: rgb(76 175 80 / 20%);
 }
 
 /* Welcome prompt */

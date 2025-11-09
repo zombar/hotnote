@@ -109,6 +109,8 @@ const FileSystemAdapter = {
     const file = await fileHandle.getFile();
     return {
       name: file.name,
+      size: file.size,
+      lastModified: file.lastModified,
     };
   },
 
@@ -1011,6 +1013,9 @@ const openFolder = async () => {
   hideFilePicker();
 
   try {
+    // Cleanup trash from previous folder before opening new one
+    await cleanupTrash();
+
     // Save temp changes if file is dirty
     if (isDirty && currentFileHandle) {
       saveTempChanges();
@@ -1192,18 +1197,51 @@ const showFilePicker = async (dirHandle) => {
     item.appendChild(icon);
     item.appendChild(name);
 
-    // Add delete button for files only
+    // Add metadata and delete button for files only
     if (entry.kind === 'file') {
+      // Get file metadata (size, permissions)
+      const file = await entry.getFile();
+      const sizeKB =
+        file.size < 1024
+          ? file.size + ' B'
+          : file.size < 1024 * 1024
+            ? (file.size / 1024).toFixed(1) + ' KB'
+            : (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+
+      // Display file size
+      const metadata = document.createElement('span');
+      metadata.className = 'file-item-metadata';
+      metadata.textContent = sizeKB;
+      item.appendChild(metadata);
+
+      // Check if file is read-only
+      let lockIcon = null;
+      try {
+        const permission = await entry.queryPermission({ mode: 'readwrite' });
+        if (permission !== 'granted') {
+          lockIcon = document.createElement('span');
+          lockIcon.className = 'file-item-lock';
+          const lockSymbol = document.createElement('span');
+          lockSymbol.className = 'material-symbols-outlined';
+          lockSymbol.textContent = 'lock';
+          lockIcon.appendChild(lockSymbol);
+          lockIcon.title = 'Read-only';
+          item.appendChild(lockIcon);
+        }
+      } catch {
+        // Permission check not supported, ignore
+      }
+
+      // Add delete button with confirmation
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'file-item-delete';
       const deleteIcon = document.createElement('span');
       deleteIcon.className = 'material-symbols-outlined';
-      deleteIcon.textContent = 'delete';
+      deleteIcon.textContent = 'close';
       deleteBtn.appendChild(deleteIcon);
       deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation(); // Prevent opening the file
-        focusManager.saveFocusState();
-        await deleteFile(entry);
+        showDeleteConfirmation(item, entry, metadata, lockIcon);
       });
       item.appendChild(deleteBtn);
     }
@@ -1261,18 +1299,79 @@ document.addEventListener('click', (e) => {
   hideFilePicker();
 });
 
-// Delete a file
-const deleteFile = async (fileHandle) => {
-  const confirmDelete = window.confirm(
-    `Are you sure you want to delete "${fileHandle.name}"? This action cannot be undone.`
-  );
+// Global variable for trash handle
+let trashDirHandle = null;
 
-  if (!confirmDelete) {
-    return;
-  }
+// Show delete confirmation inline
+const showDeleteConfirmation = (item, entry, metadata, lockIcon) => {
+  // Hide metadata and lock icon if they exist
+  if (metadata) metadata.style.display = 'none';
+  if (lockIcon) lockIcon.style.display = 'none';
 
+  // Hide the delete button
+  const deleteBtn = item.querySelector('.file-item-delete');
+  if (deleteBtn) deleteBtn.style.display = 'none';
+
+  // Create confirmation UI
+  const confirmContainer = document.createElement('div');
+  confirmContainer.className = 'file-item-delete-confirm';
+
+  const confirmText = document.createElement('span');
+  confirmText.className = 'file-item-delete-confirm-text';
+  confirmText.textContent = 'Delete?';
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'file-item-delete-confirm-btn confirm';
+  const confirmIcon = document.createElement('span');
+  confirmIcon.className = 'material-symbols-outlined';
+  confirmIcon.textContent = 'check';
+  confirmBtn.appendChild(confirmIcon);
+  confirmBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await moveToTrash(entry);
+    showUndoSnackbar(entry.name, entry);
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'file-item-delete-confirm-btn cancel';
+  const cancelIcon = document.createElement('span');
+  cancelIcon.className = 'material-symbols-outlined';
+  cancelIcon.textContent = 'close';
+  cancelBtn.appendChild(cancelIcon);
+  cancelBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Restore normal view
+    if (metadata) metadata.style.display = '';
+    if (lockIcon) lockIcon.style.display = '';
+    if (deleteBtn) deleteBtn.style.display = '';
+    confirmContainer.remove();
+  });
+
+  confirmContainer.appendChild(confirmText);
+  confirmContainer.appendChild(confirmBtn);
+  confirmContainer.appendChild(cancelBtn);
+  item.appendChild(confirmContainer);
+};
+
+// Move file to trash folder
+const moveToTrash = async (fileHandle) => {
   try {
-    // Remove the file from the directory
+    // Create .trash folder if it doesn't exist
+    if (!trashDirHandle) {
+      trashDirHandle = await currentDirHandle.getDirectoryHandle('.trash', { create: true });
+    }
+
+    // Read file contents
+    const file = await fileHandle.getFile();
+    const contents = await file.text();
+
+    // Create file in trash with same name
+    const trashFileHandle = await trashDirHandle.getFileHandle(fileHandle.name, { create: true });
+    const writable = await trashFileHandle.createWritable();
+    await writable.write(contents);
+    await writable.close();
+
+    // Delete from original location
     await currentDirHandle.removeEntry(fileHandle.name);
 
     // If the deleted file is currently open, close it
@@ -1293,8 +1392,89 @@ const deleteFile = async (fileHandle) => {
     // Refresh the file picker
     await showFilePicker(currentDirHandle);
   } catch (err) {
-    console.error('Error deleting file:', err);
+    console.error('Error moving file to trash:', err);
     alert('Error deleting file: ' + err.message);
+  }
+};
+
+// Restore file from trash
+const restoreFromTrash = async (filename) => {
+  try {
+    if (!trashDirHandle) return;
+
+    // Read file from trash
+    const trashFileHandle = await trashDirHandle.getFileHandle(filename);
+    const file = await trashFileHandle.getFile();
+    const contents = await file.text();
+
+    // Restore to original location
+    const restoredFileHandle = await currentDirHandle.getFileHandle(filename, { create: true });
+    const writable = await restoredFileHandle.createWritable();
+    await writable.write(contents);
+    await writable.close();
+
+    // Delete from trash
+    await trashDirHandle.removeEntry(filename);
+
+    // Refresh the file picker
+    await showFilePicker(currentDirHandle);
+  } catch (err) {
+    console.error('Error restoring file from trash:', err);
+    alert('Error restoring file: ' + err.message);
+  }
+};
+
+// Show undo snackbar
+const showUndoSnackbar = (filename, _fileHandle) => {
+  // Remove existing snackbar if any
+  const existingSnackbar = document.querySelector('.snackbar');
+  if (existingSnackbar) {
+    existingSnackbar.remove();
+  }
+
+  // Create snackbar
+  const snackbar = document.createElement('div');
+  snackbar.className = 'snackbar';
+
+  const message = document.createElement('span');
+  message.className = 'snackbar-message';
+  message.textContent = `Deleted ${filename}`;
+
+  const undoBtn = document.createElement('button');
+  undoBtn.className = 'snackbar-action';
+  undoBtn.textContent = 'UNDO';
+  undoBtn.addEventListener('click', async () => {
+    await restoreFromTrash(filename);
+    snackbar.remove();
+  });
+
+  snackbar.appendChild(message);
+  snackbar.appendChild(undoBtn);
+  document.body.appendChild(snackbar);
+
+  // Show snackbar with animation
+  setTimeout(() => {
+    snackbar.classList.add('visible');
+  }, 10);
+
+  // Auto-dismiss after 10 seconds
+  setTimeout(() => {
+    snackbar.classList.remove('visible');
+    setTimeout(() => {
+      snackbar.remove();
+    }, 200);
+  }, 10000);
+};
+
+// Cleanup trash folder
+const cleanupTrash = async () => {
+  try {
+    if (trashDirHandle && currentDirHandle) {
+      await currentDirHandle.removeEntry('.trash', { recursive: true });
+      trashDirHandle = null;
+    }
+  } catch (err) {
+    console.error('Error cleaning up trash:', err);
   }
 };
 
@@ -2922,6 +3102,11 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   } catch (err) {
     console.error('Error setting up version banner:', err);
   }
+
+  // Cleanup trash on window close
+  window.addEventListener('beforeunload', async () => {
+    await cleanupTrash();
+  });
 
   // Add window focus listener for multi-instance detection
   window.addEventListener('focus', async () => {
