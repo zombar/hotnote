@@ -80,11 +80,38 @@ test.describe('File Picker', () => {
     // await expect(filePicker).not.toHaveClass(/hidden/);
   });
 
+  test('should keep file picker open when folder is clicked', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. File picker is open showing folders
+    // 2. Click on a folder
+    // 3. File picker should remain open
+    // 4. File picker should show the contents of the clicked folder
+
+    // This requires File System Access API mocking to set up
+    // a folder structure with subdirectories
+    // Placeholder for actual implementation
+  });
+
   test('should navigate through directories', async ({ page }) => {
     await page.goto('/');
 
     // This test requires File System Access API setup
     // Placeholder for actual implementation with folder structure
+  });
+
+  test('should close file picker when file is clicked', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. File picker is open showing files
+    // 2. Click on a file
+    // 3. File picker should close
+    // 4. Selected file should be opened in the editor
+
+    // This requires File System Access API mocking
+    // Placeholder for actual implementation
   });
 
   test('should create new file from quick search', async ({ page }) => {

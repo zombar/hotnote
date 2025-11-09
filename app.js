@@ -1070,7 +1070,8 @@ const showFilePicker = async (dirHandle) => {
       item.appendChild(deleteBtn);
     }
 
-    item.addEventListener('click', async () => {
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
       if (entry.kind === 'directory') {
         await navigateToDirectory(entry);
       } else {
