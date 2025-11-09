@@ -1172,7 +1172,7 @@ const showFilePicker = async (dirHandle) => {
     icon.className = 'file-item-icon';
     const iconSymbol = document.createElement('span');
     iconSymbol.className = 'material-symbols-outlined';
-    iconSymbol.textContent = entry.kind === 'directory' ? 'folder' : 'description';
+    iconSymbol.textContent = getFileIcon(entry.name, entry.kind === 'directory');
     icon.appendChild(iconSymbol);
 
     const name = document.createElement('span');
@@ -1773,6 +1773,95 @@ const recursiveSearchFiles = async function* (dirHandle, query, maxDepth = 10, m
   yield* traverse(dirHandle);
 };
 
+// Helper function to get Material Symbol icon name based on file type
+const getFileIcon = (filename, isDirectory) => {
+  if (isDirectory) {
+    return 'folder';
+  }
+
+  // Extract extension
+  const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : '';
+
+  // Handle special filenames without extensions
+  if (filename === 'package.json' || filename === 'package-lock.json') {
+    return 'inventory_2';
+  }
+  if (filename.endsWith('ignore')) {
+    return 'visibility_off';
+  }
+  if (filename === 'Dockerfile' || filename === 'docker-compose.yml') {
+    return 'deployed_code';
+  }
+  if (filename === 'Makefile') {
+    return 'construction';
+  }
+  if (filename.toLowerCase().startsWith('readme')) {
+    return 'article';
+  }
+
+  // Map file extensions to Material Symbol icons
+  const iconMap = {
+    // Code files
+    js: 'javascript',
+    jsx: 'javascript',
+    ts: 'javascript',
+    tsx: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    py: 'code',
+    go: 'code',
+    rs: 'code',
+    java: 'code',
+    c: 'code',
+    cpp: 'code',
+    cc: 'code',
+    cxx: 'code',
+    h: 'code',
+    hpp: 'code',
+    rb: 'code',
+    php: 'code',
+
+    // Web files
+    html: 'html',
+    htm: 'html',
+    css: 'style',
+    scss: 'style',
+    sass: 'style',
+
+    // Data/config files
+    json: 'data_object',
+    xml: 'code',
+    yaml: 'settings',
+    yml: 'settings',
+    toml: 'settings',
+    ini: 'settings',
+    env: 'vpn_key',
+
+    // Documents
+    md: 'article',
+    markdown: 'article',
+    txt: 'description',
+    pdf: 'picture_as_pdf',
+
+    // Images
+    png: 'image',
+    jpg: 'image',
+    jpeg: 'image',
+    gif: 'image',
+    svg: 'image',
+    webp: 'image',
+    ico: 'image',
+
+    // Scripts
+    sh: 'terminal',
+    bash: 'terminal',
+    zsh: 'terminal',
+    fish: 'terminal',
+  };
+
+  return iconMap[ext] || 'description';
+};
+
 // Helper function to create a dropdown item for autocomplete
 const createDropdownItem = (result, input, dropdown, handleSubmit) => {
   const item = document.createElement('div');
@@ -1781,11 +1870,23 @@ const createDropdownItem = (result, input, dropdown, handleSubmit) => {
     item.classList.add('is-directory');
   }
 
-  // Name line
+  // Name line with Material Symbol icon
   const nameDiv = document.createElement('div');
   nameDiv.className = 'autocomplete-item-name';
-  const icon = result.kind === 'directory' ? '📁 ' : '📄 ';
-  nameDiv.textContent = icon + result.name;
+
+  // Create icon element
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'material-symbols-outlined';
+  const iconName = getFileIcon(result.name, result.kind === 'directory');
+  iconSpan.textContent = iconName;
+
+  // Create text node for filename
+  const nameSpan = document.createElement('span');
+  nameSpan.textContent = result.name;
+
+  // Append icon and name
+  nameDiv.appendChild(iconSpan);
+  nameDiv.appendChild(nameSpan);
 
   // Path line (if not in current directory)
   if (result.path) {

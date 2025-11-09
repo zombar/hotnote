@@ -457,6 +457,21 @@ body:not(.preload) .app-logo span {
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.autocomplete-item-name .material-symbols-outlined {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.autocomplete-item:hover .material-symbols-outlined,
+.autocomplete-item.selected .material-symbols-outlined {
+  color: var(--primary);
 }
 
 .autocomplete-item-path {
