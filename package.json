@@ -80,7 +80,10 @@
       "eslint --fix",
       "prettier --write"
     ],
-    "*.{html,css,json,md}": [
+    "*.ts": [
+      "prettier --write"
+    ],
+    "*.{html,css,json,md,yaml,yml}": [
       "prettier --write"
     ],
     "*.html": [

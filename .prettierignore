@@ -5,3 +5,5 @@ coverage
 *.min.css
 package-lock.json
 CHANGELOG.md
+infra/node_modules
+infra/bin

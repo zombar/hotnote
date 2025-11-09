@@ -14,7 +14,9 @@ console.log(`Image configuration:`);
 console.log(`  Registry: ${registry}`);
 console.log(`  Repository: ${repository}`);
 console.log(`  Tag: ${imageTag}`);
-console.log(`  Full path would be: registry.digitalocean.com/${registry}/${repository}:${imageTag}`);
+console.log(
+  `  Full path would be: registry.digitalocean.com/${registry}/${repository}:${imageTag}`
+);
 
 // Create a DigitalOcean App Platform app
 const app = new digitalocean.App('hotnote-app', {

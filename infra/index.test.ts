@@ -80,7 +80,6 @@ describe('Pulumi Infrastructure Tests', () => {
       expect(appId).toContain('app');
     });
 
-
     it('should export appDefaultUrl', async () => {
       const appDefaultUrl = await promiseOf(infrastructure.appDefaultUrl);
       expect(appDefaultUrl).toBeDefined();
