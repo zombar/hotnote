@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.8.0](https://github.com/zombar/hotnote.io/compare/v1.7.0...v1.8.0) (2025-11-09)
+
+
+### Features
+
+* beautify welcome banner and file picker ([b1ce53d](https://github.com/zombar/hotnote.io/commit/b1ce53db3c436ef10e898bc4aaf734d91b7d3b37))
+* document viewer-like experience for rich text editor ([ce85483](https://github.com/zombar/hotnote.io/commit/ce8548350b9394c89aec25613af728bae174a647))
+* document viewer-like experience for rich text editor ([#32](https://github.com/zombar/hotnote.io/issues/32)) ([f1bc30a](https://github.com/zombar/hotnote.io/commit/f1bc30a42265147d03331660ade8cae15f313cc0))
+
+
+### Bug Fixes
+
+* file picker closing open file prematurely ([e0803d4](https://github.com/zombar/hotnote.io/commit/e0803d4902236c3c639e8ecb850e80734c6e9a2a))
+* focus manager should track cursor state ([#34](https://github.com/zombar/hotnote.io/issues/34)) ([b58d2f4](https://github.com/zombar/hotnote.io/commit/b58d2f4be42f21fc654130ec919b61574ba138be))
+* new doc should be disable if no workspace folder ([#35](https://github.com/zombar/hotnote.io/issues/35)) ([c0bf868](https://github.com/zombar/hotnote.io/commit/c0bf868533e17eaceead8c260a3f08a539ab0bc4))
+
 ## [1.7.0](https://github.com/zombar/hotnote.io/compare/v1.6.0...v1.7.0) (2025-11-09)
 
 
