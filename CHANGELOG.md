@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/zombar/hotnote.io/compare/v1.6.0...v1.7.0) (2025-11-09)
+
+
+### Features
+
+* beautify params ([#29](https://github.com/zombar/hotnote.io/issues/29)) ([5078d9a](https://github.com/zombar/hotnote.io/commit/5078d9a564f35fdd6500c6061a60235b5b9feecb))
+
 ## [1.6.0](https://github.com/zombar/hotnote.io/compare/v1.5.0...v1.6.0) (2025-11-09)
 
 
