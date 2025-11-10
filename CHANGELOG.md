@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/zombar/hotnote.io/compare/v1.14.1...v1.15.0) (2025-11-10)
+
+
+### Features
+
+* richtext toc browser ([#62](https://github.com/zombar/hotnote.io/issues/62)) ([aa337fd](https://github.com/zombar/hotnote.io/commit/aa337fde09fb4e7e22321a4c29316ba313787c0e))
+
 ## [1.14.1](https://github.com/zombar/hotnote.io/compare/v1.14.0...v1.14.1) (2025-11-10)
 
 
