@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.1](https://github.com/zombar/hotnote.io/compare/v1.14.0...v1.14.1) (2025-11-10)
+
+
+### Bug Fixes
+
+* search modal focus bug ([#63](https://github.com/zombar/hotnote.io/issues/63)) ([4fcf7c9](https://github.com/zombar/hotnote.io/commit/4fcf7c93dc880ec93b5566696203c5ad95ef1346))
+
 ## [1.14.0](https://github.com/zombar/hotnote.io/compare/v1.13.0...v1.14.0) (2025-11-10)
 
 
