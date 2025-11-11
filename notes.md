@@ -1,5 +1,7 @@
 ## TODO
 
+* fix clicking on links
+
 * center the breadcrumbs on the navbar
 
 * When a tab is closed, the session metadata should be updated before close
