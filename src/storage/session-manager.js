@@ -95,39 +95,23 @@ function getSessionFilePath(getRelativeFilePathFn) {
 export async function saveEditorStateToSession(getRelativeFilePathFn) {
   // Don't save if TOC navigation is in progress
   if (window.blockSessionSave) {
-    console.log('[Session] Skipping save - TOC navigation in progress');
     return;
   }
 
   // Don't save if we just restored state (wait for scroll animation to complete)
   // Block for 1 second (animation is 250ms, plus margin for safety)
   const timeSinceRestoration = Date.now() - appState.lastRestorationTime;
-  console.log(
-    '[Session] Save check: lastRestorationTime=',
-    appState.lastRestorationTime,
-    'timeSince=',
-    timeSinceRestoration,
-    'willBlock=',
-    appState.lastRestorationTime > 0 && timeSinceRestoration < 1000
-  );
   if (appState.lastRestorationTime > 0 && timeSinceRestoration < 1000) {
-    console.log(
-      '[Session] Skipping save - scroll animation in progress (',
-      timeSinceRestoration,
-      'ms since restoration)'
-    );
     return;
   }
 
   if (!appState.currentDirHandle || !appState.currentFileHandle) {
-    console.log('[Session] Skipping save - no dir or file handle');
     return;
   }
 
   try {
     const filePath = getSessionFilePath(getRelativeFilePathFn);
     if (!filePath) {
-      console.log('[Session] Skipping save - no file path');
       return;
     }
 
@@ -143,13 +127,6 @@ export async function saveEditorStateToSession(getRelativeFilePathFn) {
     let scrollLeft = 0;
     let editorMode = 'source'; // Default for non-markdown files
 
-    console.log(
-      '[Session] saveEditorStateToSession called. editorManager:',
-      !!appState.editorManager,
-      'editorView:',
-      !!appState.editorView
-    );
-
     if (appState.editorManager) {
       // Markdown file using EditorManager
       const cursor = appState.editorManager.getCursor();
@@ -157,12 +134,6 @@ export async function saveEditorStateToSession(getRelativeFilePathFn) {
       cursorColumn = cursor.column;
       scrollTop = appState.editorManager.getScrollPosition();
       editorMode = appState.editorManager.getMode();
-      console.log('[Session] Saving EditorManager state:', {
-        cursorLine,
-        cursorColumn,
-        scrollTop,
-        editorMode,
-      });
     } else if (appState.editorView) {
       // Non-markdown file using CodeMirror
       const pos = appState.editorView.state.selection.main.head;
@@ -171,14 +142,6 @@ export async function saveEditorStateToSession(getRelativeFilePathFn) {
       cursorColumn = pos - line.from;
       scrollTop = appState.editorView.scrollDOM.scrollTop;
       scrollLeft = appState.editorView.scrollDOM.scrollLeft;
-      console.log('[Session] Saving CodeMirror state:', {
-        cursorLine,
-        cursorColumn,
-        scrollTop,
-        scrollLeft,
-      });
-    } else {
-      console.log('[Session] No editor active, saving defaults');
     }
 
     sessionData.session.lastOpenFile = {
@@ -190,7 +153,6 @@ export async function saveEditorStateToSession(getRelativeFilePathFn) {
       editorMode: editorMode,
     };
 
-    console.log('[Session] Saving session file with data:', sessionData.session.lastOpenFile);
     await saveSessionFile(appState.rootDirHandle, sessionData);
   } catch (err) {
     console.error('Error saving editor state:', err);

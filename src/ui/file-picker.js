@@ -11,11 +11,84 @@ import { debounce } from '../utils/helpers.js';
  * @param {FileSystemDirectoryHandle} dirHandle - Directory to show
  */
 export const showFilePicker = async (dirHandle) => {
+  // Check if picker is already open with input (breadcrumb navigation while navbar active)
+  const picker = document.getElementById('file-picker');
+  const existingInput = document.querySelector('.breadcrumb-input');
+  const pickerAlreadyOpen =
+    !picker.classList.contains('hidden') &&
+    existingInput &&
+    existingInput.dataset.hasListeners === 'true';
+
+  if (pickerAlreadyOpen) {
+    // Picker already open with input - update file list and breadcrumb, then ensure focus
+    // This avoids recreating the entire picker which causes focus loss
+
+    // Update file list for new directory
+    const fileList = document.getElementById('file-list');
+    if (fileList) {
+      fileList.innerHTML = ''; // Clear existing files
+
+      // Collect and sort entries
+      const entries = await FileSystemAdapter.listDirectory(dirHandle);
+      entries.sort((a, b) => {
+        if (a.kind === 'directory' && b.kind === 'file') return -1;
+        if (a.kind === 'file' && b.kind === 'directory') return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      // Recreate file items (same logic as below)
+      for (const entry of entries) {
+        const item = document.createElement('div');
+        item.className = `file-item ${entry.kind === 'directory' ? 'is-directory' : ''}`;
+
+        const icon = document.createElement('span');
+        icon.className = 'file-item-icon';
+        const iconSymbol = document.createElement('span');
+        iconSymbol.className = 'material-symbols-outlined';
+        iconSymbol.textContent = getFileIcon(entry.name, entry.kind === 'directory');
+        icon.appendChild(iconSymbol);
+
+        const name = document.createElement('span');
+        name.className = 'file-item-name';
+        name.textContent = entry.name;
+
+        item.appendChild(icon);
+        item.appendChild(name);
+
+        // Add click handler
+        item.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          appState.focusManager.saveFocusState();
+          if (entry.kind === 'directory') {
+            await navigateToDirectory(entry);
+          } else {
+            await openFileFromPicker(entry);
+          }
+        });
+
+        fileList.appendChild(item);
+      }
+    }
+
+    // Update breadcrumb path without recreating input
+    await quickFileCreate('');
+
+    // Force focus on input after update
+    const input = document.querySelector('.breadcrumb-input');
+    if (input) {
+      input.focus();
+    }
+
+    return;
+  }
+
   // Save current file state for restoration if user cancels
   // This happens when navbar gains focus (user interacts with breadcrumb/file picker)
   if (appState.currentFileHandle) {
     appState.previousFileHandle = appState.currentFileHandle;
     appState.previousFilename = appState.currentFilename;
+    // Set flag to enable restoration when picker is closed without selection
+    appState.isNavigatingBreadcrumbs = true;
   }
 
   // Clear current file to show clean file picker
@@ -23,12 +96,15 @@ export const showFilePicker = async (dirHandle) => {
   appState.currentFileHandle = null;
   appState.currentFilename = '';
 
+  // Note: Breadcrumb will be rebuilt by quickFileCreate() at the end with search input
+  // This ensures a single, clean update with proper focus
+
   // Pause file polling while picker is open
   if (window.fileSyncManager) {
     window.fileSyncManager.pause();
   }
 
-  const picker = document.getElementById('file-picker');
+  // Reuse picker variable from earlier check
   const resizeHandle = document.getElementById('file-picker-resize-handle');
   picker.classList.remove('hidden');
   resizeHandle.classList.remove('hidden');
@@ -139,9 +215,11 @@ export const showFilePicker = async (dirHandle) => {
     fileList.appendChild(item);
   }
 
-  // Show search input with cursor when file picker is displayed
-  // Note: Don't await - we want this to run asynchronously
-  quickFileCreate('');
+  // Show filename input with autocomplete
+  // Don't await - let it run in background while picker is shown
+  quickFileCreate('').catch((err) => {
+    console.error('Error in quickFileCreate:', err);
+  });
 };
 
 /**
@@ -156,27 +234,32 @@ export const hideFilePicker = () => {
     window.fileSyncManager.resume();
   }
 
-  // Restore previous file and path if picker was closed without selecting a new file
-  // This happens when user clicks breadcrumb to browse, then closes picker without selection
-  const noFileSelected = !appState.currentFileHandle;
+  // ONLY restore if we're in breadcrumb navigation mode
+  // This prevents restoration when closing welcome screen or other programmatic hides
+  if (appState.isNavigatingBreadcrumbs) {
+    // Restore previous file and path if picker was closed without selecting a new file
+    // This happens when user clicks breadcrumb to browse, then closes picker without selection
+    const noFileSelected = !appState.currentFileHandle;
 
-  if (noFileSelected) {
-    // Restore previous file if there was one
-    if (appState.previousFileHandle) {
-      appState.currentFileHandle = appState.previousFileHandle;
-      appState.currentFilename = appState.previousFilename;
-    }
+    if (noFileSelected) {
+      // Restore previous file if there was one
+      if (appState.previousFileHandle) {
+        appState.currentFileHandle = appState.previousFileHandle;
+        appState.currentFilename = appState.previousFilename;
+      }
 
-    // Restore previous path if there was one (from breadcrumb navigation)
-    if (appState.previousPath) {
-      appState.currentPath = appState.previousPath;
+      // Restore previous path if there was one (from breadcrumb navigation)
+      if (appState.previousPath) {
+        appState.currentPath = appState.previousPath;
+      }
     }
   }
 
-  // Clear previous state now that we've handled restoration
+  // Always clear previous state (cleanup happens regardless of navigation mode)
   appState.previousFileHandle = null;
   appState.previousFilename = '';
   appState.previousPath = null;
+  appState.isNavigatingBreadcrumbs = false;
 
   // Restore focus to editor if a file is currently open
   if (appState.currentFileHandle) {
@@ -344,6 +427,7 @@ export const openFileFromPicker = async (fileHandle) => {
     appState.previousFileHandle = null;
     appState.previousFilename = '';
     appState.previousPath = null;
+    appState.isNavigatingBreadcrumbs = false; // File selected, no longer in navigation mode
 
     // Always load the original file content from disk
     const fileContent = await FileSystemAdapter.readFile(fileHandle);
@@ -514,15 +598,60 @@ const createDropdownItem = (result, input, dropdown, handleSubmit) => {
   return item;
 };
 
+// Track active promise to prevent overlapping calls
+let activeFilenamePromise = null;
+
 /**
  * Show inline filename input with autocomplete
- * @param {string[]} existingFiles - Existing files in directory
+ * @param {string[]|Promise<string[]>} existingFilesOrPromise - Existing files or promise resolving to files
  * @param {string} initialValue - Initial input value
  * @returns {Promise<string|null>} Filename or null if cancelled
  */
-const showFilenameInput = async (existingFiles = [], initialValue = '') => {
-  return new Promise((resolve) => {
-    const breadcrumb = document.getElementById('breadcrumb');
+const showFilenameInput = async (existingFilesOrPromise = [], initialValue = '') => {
+  const breadcrumb = document.getElementById('breadcrumb');
+
+  // Check if input already exists (created by previous call)
+  let input = breadcrumb.querySelector('.breadcrumb-input');
+  let cursor = breadcrumb.querySelector('.breadcrumb-cursor');
+  let autocompleteContainer = breadcrumb.querySelector('.autocomplete-container');
+
+  // If input already exists with active promise, just update path and return sentinel
+  // This prevents overlapping promises that cause the blur handler bug
+  if (input && input.dataset.hasListeners === 'true' && activeFilenamePromise) {
+    // Update breadcrumb path to match current state
+    // Remove only the breadcrumb path items (keep autocomplete container in place)
+    const pathItems = breadcrumb.querySelectorAll('.breadcrumb-item');
+    pathItems.forEach((item) => item.remove());
+
+    // Rebuild path items and insert them BEFORE the autocomplete container
+    if (appState.currentPath.length > 0) {
+      const fragment = document.createDocumentFragment();
+      appState.currentPath.forEach((segment, _index) => {
+        const item = document.createElement('span');
+        item.className = 'breadcrumb-item';
+        item.textContent = segment.name;
+        fragment.appendChild(item);
+      });
+      breadcrumb.insertBefore(fragment, autocompleteContainer);
+    }
+
+    // Update value if provided
+    if (initialValue) {
+      input.value = initialValue;
+    }
+
+    // Ensure focus without creating new promise
+    if (document.activeElement !== input) {
+      input.focus();
+    }
+
+    // Return sentinel immediately - don't create overlapping promise
+    return Promise.resolve('__SKIP__');
+  }
+
+  // Create new promise and track it
+  const promise = new Promise((resolve) => {
+    // Input doesn't exist yet, create everything
     breadcrumb.innerHTML = '';
 
     // Rebuild path if exists
@@ -536,20 +665,26 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
     }
 
     // Create autocomplete container
-    const autocompleteContainer = document.createElement('div');
+    autocompleteContainer = document.createElement('div');
     autocompleteContainer.className = 'autocomplete-container';
 
     // Add input where filename would normally appear
-    const input = document.createElement('input');
+    input = document.createElement('input');
     input.type = 'text';
     input.className = 'breadcrumb-input';
     input.placeholder = 'filename (/ for search)';
     input.value = initialValue;
     input.autocomplete = 'off';
+    input.dataset.hasListeners = 'true'; // Mark that listeners are attached
 
     // Create custom block cursor
-    const cursor = document.createElement('span');
+    cursor = document.createElement('span');
     cursor.className = 'breadcrumb-cursor';
+
+    autocompleteContainer.appendChild(input);
+    autocompleteContainer.appendChild(cursor);
+    breadcrumb.appendChild(autocompleteContainer);
+    input.focus();
 
     // Create dropdown for autocomplete
     const dropdown = document.createElement('div');
@@ -561,6 +696,18 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
     let resolved = false;
     let searchInProgress = false;
     const header = document.querySelector('header');
+
+    // Resolve the files promise if it's a promise, otherwise use the array directly
+    let existingFiles = [];
+    if (existingFilesOrPromise && typeof existingFilesOrPromise.then === 'function') {
+      // It's a promise - resolve it asynchronously
+      existingFilesOrPromise.then((files) => {
+        existingFiles = files;
+      });
+    } else {
+      // It's already an array
+      existingFiles = existingFilesOrPromise || [];
+    }
 
     const updateDropdownImpl = async () => {
       const value = input.value.trim();
@@ -626,7 +773,15 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
           filteredFiles = results;
         } else {
           // Normal prefix mode (current directory only)
-          filteredFiles = existingFiles
+          // Await files if they're still loading
+          const filesToFilter =
+            existingFiles.length > 0
+              ? existingFiles
+              : existingFilesOrPromise && typeof existingFilesOrPromise.then === 'function'
+                ? await existingFilesOrPromise
+                : [];
+
+          filteredFiles = filesToFilter
             .filter((file) => file.toLowerCase().startsWith(searchQuery.toLowerCase()))
             .map((name) => ({
               name: name,
@@ -690,6 +845,9 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       // Clean up dropdown and loading animation
       dropdown.remove();
       header.classList.remove('searching');
+
+      // Clear active promise tracker
+      activeFilenamePromise = null;
 
       const filename = input.value.trim();
       // Validate filename
@@ -770,6 +928,9 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       dropdown.remove();
       header.classList.remove('searching');
 
+      // Clear active promise tracker
+      activeFilenamePromise = null;
+
       resolve(null);
     };
 
@@ -838,14 +999,31 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       }
     });
 
-    input.addEventListener('blur', () => {
+    // Track if we've attempted to recover from breadcrumb navigation blur
+    let hasAttemptedRefocus = false;
+
+    input.addEventListener('blur', (e) => {
+      // Hide cursor when input loses focus
+      cursor.style.display = 'none';
+
       // Delay to allow click on dropdown
       setTimeout(() => {
+        // Don't cancel if we're actively navigating breadcrumbs AND focus went nowhere (relatedTarget was null)
+        // This handles the immediate blur from breadcrumb clicks
+        if (appState.isNavigatingBreadcrumbs && !e.relatedTarget && !hasAttemptedRefocus) {
+          hasAttemptedRefocus = true;
+
+          // Show cursor again and re-focus
+          cursor.style.display = 'inline';
+          if (document.querySelector('.breadcrumb-input') === input) {
+            input.focus();
+          }
+          return;
+        }
+
         dropdown.style.display = 'none';
         handleCancel();
       }, 200);
-      // Hide cursor when input loses focus
-      cursor.style.display = 'none';
     });
 
     // Create persistent measureSpan element (kept in DOM to avoid layout thrashing)
@@ -907,11 +1085,10 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
     input.addEventListener('click', updateCursorPosition);
     input.addEventListener('select', updateCursorPosition);
 
-    autocompleteContainer.appendChild(input);
-    autocompleteContainer.appendChild(cursor);
-    breadcrumb.appendChild(autocompleteContainer);
-    // Append dropdown to body for fixed positioning
+    // Append dropdown to body for fixed positioning (always needed)
     document.body.appendChild(dropdown);
+
+    // Ensure input has focus (might have lost it during setup)
     input.focus();
 
     // Use requestAnimationFrame for smooth initial cursor positioning
@@ -934,6 +1111,18 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       { once: true }
     );
   });
+
+  // Track this promise to prevent overlapping calls
+  activeFilenamePromise = promise;
+
+  // Clear tracker when promise resolves
+  promise.finally(() => {
+    if (activeFilenamePromise === promise) {
+      activeFilenamePromise = null;
+    }
+  });
+
+  return promise;
 };
 
 /**
@@ -946,17 +1135,23 @@ export const quickFileCreate = async (initialChar = '') => {
     return;
   }
 
-  // Get existing files in current directory for autocomplete
-  let existingFiles = [];
-  try {
-    const entries = await FileSystemAdapter.listDirectory(appState.currentDirHandle);
-    existingFiles = entries.filter((entry) => entry.kind === 'file').map((entry) => entry.name);
-  } catch (err) {
-    console.error('Error listing directory:', err);
-  }
+  // Start loading files for autocomplete in background (don't block input creation)
+  const filesPromise = FileSystemAdapter.listDirectory(appState.currentDirHandle)
+    .then((entries) => entries.filter((entry) => entry.kind === 'file').map((entry) => entry.name))
+    .catch((err) => {
+      console.error('Error listing directory:', err);
+      return [];
+    });
 
-  // Show inline input for filename with initial character
-  const filename = await showFilenameInput(existingFiles, initialChar);
+  // Show inline input IMMEDIATELY for responsive UI (files will load in background)
+  // This ensures input is created and focused without delay
+  const filename = await showFilenameInput(filesPromise, initialChar);
+
+  if (filename === '__SKIP__') {
+    // Input already exists with listeners, early return from showFilenameInput
+    // Don't call updateBreadcrumb() - input is already showing and updated
+    return;
+  }
 
   if (!filename) {
     // User cancelled - restore breadcrumb
@@ -1175,14 +1370,13 @@ export const setupFilePickerClickAway = () => {
     // Don't close if click was on the resize handle
     if (e.target.closest('#file-picker-resize-handle')) return;
 
-    // Don't close if click was on breadcrumb (handled by stopPropagation)
-    // Don't close if click was on navigation controls or header
+    // Don't close if click was on specific interactive elements
+    // (Breadcrumb items use stopPropagation, but we also check container)
     const clickedElement = e.target;
     if (
       clickedElement.closest('.breadcrumb') ||
       clickedElement.closest('.nav-controls') ||
-      clickedElement.closest('.autocomplete-dropdown') ||
-      clickedElement.closest('header')
+      clickedElement.closest('.autocomplete-dropdown')
     ) {
       return;
     }

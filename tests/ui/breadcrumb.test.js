@@ -23,6 +23,10 @@ describe('Breadcrumb', () => {
     appState.currentFileHandle = null;
     appState.currentDirHandle = null;
     appState.isDirty = false;
+    appState.previousPath = null;
+    appState.previousFileHandle = null;
+    appState.previousFilename = '';
+    appState.isNavigatingBreadcrumbs = false;
 
     // Mock callbacks
     mockCallbacks = {
@@ -31,12 +35,18 @@ describe('Breadcrumb', () => {
       saveFocusState: vi.fn(),
       saveTempChanges: vi.fn(),
     };
+
+    // Mock window.updateBreadcrumb for navigateToPathIndex
+    window.updateBreadcrumb = vi.fn(() => {
+      updateBreadcrumb(mockCallbacks);
+    });
   });
 
   afterEach(() => {
     if (document.body.contains(breadcrumbElement)) {
       document.body.removeChild(breadcrumbElement);
     }
+    delete window.updateBreadcrumb;
   });
 
   describe('updateBreadcrumb', () => {
@@ -276,6 +286,68 @@ describe('Breadcrumb', () => {
       expect(appState.currentPath).toHaveLength(2);
       expect(appState.currentPath[0].name).toBe('root');
       expect(appState.currentPath[1].name).toBe('src');
+    });
+  });
+
+  describe('Direct showFilePicker Restoration', () => {
+    it('should restore file when clicking filename and canceling picker', async () => {
+      // Setup DOM for file picker (needed by hideFilePicker)
+      const filePickerElement = document.createElement('div');
+      filePickerElement.id = 'file-picker';
+      document.body.appendChild(filePickerElement);
+
+      const resizeHandle = document.createElement('div');
+      resizeHandle.id = 'file-picker-resize-handle';
+      document.body.appendChild(resizeHandle);
+
+      // Setup: file is open
+      const originalFile = createMockFileHandle('test.js', 'content');
+      appState.currentPath = [{ name: 'src', handle: createMockDirectoryHandle('src', {}) }];
+      appState.currentFileHandle = originalFile;
+      appState.currentFilename = 'test.js';
+      appState.currentDirHandle = appState.currentPath[0].handle;
+
+      // Mock focusManager
+      appState.focusManager = { focusEditor: vi.fn() };
+
+      // Mock showFilePicker to simulate opening picker
+      mockCallbacks.showFilePicker = vi.fn(async () => {
+        // Simulate what real showFilePicker does:
+        // 1. Save current file
+        if (appState.currentFileHandle) {
+          appState.previousFileHandle = appState.currentFileHandle;
+          appState.previousFilename = appState.currentFilename;
+          appState.isNavigatingBreadcrumbs = true;
+        }
+        // 2. Clear current file
+        appState.currentFileHandle = null;
+        appState.currentFilename = '';
+      });
+
+      updateBreadcrumb(mockCallbacks);
+
+      // Click filename (not placeholder, not from breadcrumb navigation)
+      const fileItem = breadcrumbElement.querySelector('.breadcrumb-item:last-child');
+      await fileItem.click();
+
+      // Verify file was cleared
+      expect(appState.currentFileHandle).toBeNull();
+      expect(appState.currentFilename).toBe('');
+
+      // Verify flag was set
+      expect(appState.isNavigatingBreadcrumbs).toBe(true);
+
+      // User cancels picker (closes without selection)
+      const { hideFilePicker } = await import('../../src/ui/file-picker.js');
+      hideFilePicker();
+
+      // File should be restored
+      expect(appState.currentFileHandle).toBe(originalFile);
+      expect(appState.currentFilename).toBe('test.js');
+
+      // Cleanup
+      document.body.removeChild(filePickerElement);
+      document.body.removeChild(resizeHandle);
     });
   });
 

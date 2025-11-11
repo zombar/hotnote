@@ -11,8 +11,14 @@ import { appState } from '../state/app-state.js';
  * @param {Function} callbacks.openFolder - Open folder picker
  * @param {Function} callbacks.showFilePicker - Show file picker
  * @param {Function} callbacks.saveFocusState - Save current focus state
+ * @param {Function} callbacks.saveTempChanges - Save temporary changes
  */
-export const updateBreadcrumb = ({ openFolder, showFilePicker, saveFocusState } = {}) => {
+export const updateBreadcrumb = ({
+  openFolder,
+  showFilePicker,
+  saveFocusState,
+  saveTempChanges,
+} = {}) => {
   const breadcrumb = document.getElementById('breadcrumb');
   if (!breadcrumb) return;
 
@@ -44,9 +50,9 @@ export const updateBreadcrumb = ({ openFolder, showFilePicker, saveFocusState } 
       firstItem.className = 'breadcrumb-item';
       firstItem.textContent = appState.currentPath[0].name;
       firstItem.dataset.index = 0;
-      firstItem.addEventListener('click', (e) => {
+      firstItem.addEventListener('click', async (e) => {
         e.stopPropagation();
-        navigateToPathIndex(0, { showFilePicker, saveFocusState });
+        await navigateToPathIndex(0, { showFilePicker, saveFocusState, saveTempChanges });
       });
       breadcrumb.appendChild(firstItem);
 
@@ -64,9 +70,9 @@ export const updateBreadcrumb = ({ openFolder, showFilePicker, saveFocusState } 
         item.className = 'breadcrumb-item';
         item.textContent = segment.name;
         item.dataset.index = i;
-        item.addEventListener('click', (e) => {
+        item.addEventListener('click', async (e) => {
           e.stopPropagation();
-          navigateToPathIndex(i, { showFilePicker, saveFocusState });
+          await navigateToPathIndex(i, { showFilePicker, saveFocusState, saveTempChanges });
         });
         breadcrumb.appendChild(item);
       }
@@ -79,9 +85,9 @@ export const updateBreadcrumb = ({ openFolder, showFilePicker, saveFocusState } 
         item.dataset.index = index;
 
         // Make all folder items clickable (even the last one)
-        item.addEventListener('click', (e) => {
+        item.addEventListener('click', async (e) => {
           e.stopPropagation();
-          navigateToPathIndex(index, { showFilePicker, saveFocusState });
+          await navigateToPathIndex(index, { showFilePicker, saveFocusState, saveTempChanges });
         });
 
         breadcrumb.appendChild(item);
@@ -97,11 +103,13 @@ export const updateBreadcrumb = ({ openFolder, showFilePicker, saveFocusState } 
       }
       fileItem.textContent = appState.currentFilename;
       fileItem.style.cursor = 'pointer';
-      fileItem.addEventListener('click', (e) => {
+      fileItem.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (appState.currentDirHandle) {
           if (saveFocusState) saveFocusState();
-          if (showFilePicker) showFilePicker(appState.currentDirHandle);
+          if (showFilePicker) {
+            await showFilePicker(appState.currentDirHandle);
+          }
         }
       });
       breadcrumb.appendChild(fileItem);
@@ -111,11 +119,13 @@ export const updateBreadcrumb = ({ openFolder, showFilePicker, saveFocusState } 
       placeholder.className = 'breadcrumb-item breadcrumb-placeholder';
       placeholder.textContent = 'filename (/ for search)';
       placeholder.style.cursor = 'pointer';
-      placeholder.addEventListener('click', (e) => {
+      placeholder.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (appState.currentDirHandle) {
           if (saveFocusState) saveFocusState();
-          if (showFilePicker) showFilePicker(appState.currentDirHandle);
+          if (showFilePicker) {
+            await showFilePicker(appState.currentDirHandle);
+          }
         }
       });
       breadcrumb.appendChild(placeholder);
@@ -165,9 +175,23 @@ export const navigateToPathIndex = async (
     saveTempChanges();
   }
 
-  // Save current path for restoration if user cancels (closes picker without selection)
+  // Mark that we're in breadcrumb navigation mode (enables restoration on picker close)
+  appState.isNavigatingBreadcrumbs = true;
+
+  // Save current state for restoration if user cancels (closes picker without selection)
+  // Only save if not already saved (preserves ORIGINAL state during multiple navigations)
   // Deep copy the array to prevent mutations
-  appState.previousPath = [...appState.currentPath];
+  if (!appState.previousPath) {
+    appState.previousPath = [...appState.currentPath];
+  }
+
+  // Save and clear current file before showing picker
+  if (appState.currentFileHandle && !appState.previousFileHandle) {
+    appState.previousFileHandle = appState.currentFileHandle;
+    appState.previousFilename = appState.currentFilename;
+  }
+  appState.currentFileHandle = null;
+  appState.currentFilename = '';
 
   // Truncate path to the clicked index
   appState.currentPath = appState.currentPath.slice(0, index + 1);
@@ -179,11 +203,17 @@ export const navigateToPathIndex = async (
   // Note: Don't add to history - breadcrumb navigation is just for browsing
 
   // Show file picker for this directory
-  // Note: showFilePicker will handle clearing/saving the current file
+  // showFilePicker will handle breadcrumb update with search input, so we don't update here
+  // This avoids double-update that can interfere with focus
   if (showFilePicker && appState.currentDirHandle) {
     await showFilePicker(appState.currentDirHandle);
+  } else {
+    // Fallback: Update breadcrumb to show new path and placeholder
+    // Only if showFilePicker is not available (shouldn't happen in production)
+    if (window.updateBreadcrumb) {
+      window.updateBreadcrumb();
+    } else {
+      updateBreadcrumb({ showFilePicker, saveFocusState, saveTempChanges });
+    }
   }
-
-  // Update breadcrumb to reflect new path
-  updateBreadcrumb({ showFilePicker, saveFocusState, saveTempChanges });
 };

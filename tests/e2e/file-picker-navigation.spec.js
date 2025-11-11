@@ -169,6 +169,33 @@ test.describe('File Picker Navigation with Open Files', () => {
     expect(pickerExists).toBeGreaterThan(0);
   });
 
+  test('should focus search input on first breadcrumb click', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('[data-testid="breadcrumb"]');
+
+    // Setup: Open a folder so breadcrumb is interactive
+    await page.evaluate(() => {
+      if (!window.currentDirHandle) {
+        window.currentDirHandle = { name: 'test-folder', kind: 'directory' };
+        window.currentPath = [{ name: 'test-folder', handle: window.currentDirHandle }];
+        if (window.updateBreadcrumb) {
+          window.updateBreadcrumb();
+        }
+      }
+    });
+
+    const breadcrumb = page.getByTestId('breadcrumb');
+
+    // Click breadcrumb ONCE
+    await breadcrumb.click();
+    await page.waitForTimeout(100);
+
+    // Search input should exist and be focused
+    const input = page.locator('.breadcrumb-input');
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+  });
+
   test('should restore file when clicking away from picker without selecting', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('[data-testid="editor"]');
@@ -308,4 +335,8 @@ test.describe('File Picker Navigation with Open Files', () => {
     // Currently might fail, showing the bug exists
     expect(untitledCalls.length).toBe(0);
   });
+
+  // Note: Comprehensive unit tests for breadcrumb navigation flow exist in
+  // tests/ui/breadcrumb-navigation-flow.test.js (10 tests covering all scenarios)
+  // E2E tests above cover the high-level browser behavior
 });

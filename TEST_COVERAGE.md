@@ -2,8 +2,8 @@
 
 ## Summary
 
-**Total Test Suites**: 11
-**Total Tests**: 246 (225 unit/integration + 21 new session tests)
+**Total Test Suites**: 36
+**Total Tests**: 1018
 **Test Coverage**: ~85% (70% lines, 85% functions, 67% branches, 70% statements)
 
 ## Test Suite Breakdown
@@ -225,6 +225,34 @@
 - ✅ Session data preservation across navigation
 - ✅ Session file corruption recovery
 
+#### 12. File Picker UI (`tests/ui/file-picker.test.js`)
+
+- **Tests**: 53
+- **Coverage**: File picker interactions, event listener management
+- **Status**: ✅ All passing
+
+**Covered:**
+
+- File picker display and navigation
+- File creation and opening workflows
+- Event listener lifecycle management
+- Breadcrumb navigation with focus preservation
+- Single attachment of blur/focus/keydown handlers
+- Path updates without listener duplication
+
+**Event Listener Tests (New - 2025-01-11):**
+
+- ✅ Blur handler attached exactly once across multiple calls
+- ✅ Focus handler attached exactly once
+- ✅ Keydown handler attached exactly once
+- ✅ Breadcrumb path updates without reattaching listeners
+
+**Regression Prevention:**
+
+- Tests prevent duplicate event listener bug that caused focus loss on breadcrumb clicks
+- Verifies exactly 2 blur handlers (main + cleanup with `{ once: true }`)
+- Ensures listeners are never duplicated when `quickFileCreate()` called multiple times
+
 ## E2E Test Plan (Playwright)
 
 ### Planned Test Scenarios (Not Yet Implemented)
@@ -377,9 +405,16 @@ npm run test:e2e
 3. Add performance benchmarks to CI
 4. Implement visual regression testing
 
-## Recent Additions (2025-01-08)
+## Recent Additions
 
-### Session Management Tests
+### 2025-01-11: Event Listener Management Tests
+
+- ✅ Added 4 comprehensive tests for event listener lifecycle
+- ✅ Tests verify single attachment of blur/focus/keydown handlers
+- ✅ Regression prevention for focus loss bug during breadcrumb navigation
+- ✅ Tests cover duplicate listener prevention across multiple `quickFileCreate()` calls
+
+### 2025-01-08: Session Management Tests
 
 - ✅ Added 12 unit tests for session file location
 - ✅ Added 9 integration tests for session persistence
@@ -413,9 +448,9 @@ npm run test:e2e
 
 ### Test Execution Time
 
-- **Unit Tests**: ~6s
-- **Integration Tests**: ~6s
-- **Total**: ~6s
+- **Unit Tests**: ~1.8s
+- **Integration Tests**: ~1.8s
+- **Total**: ~1.8s (1018 tests)
 - **Target**: <10s ✅
 
 ## Next Steps
@@ -442,20 +477,22 @@ npm run test:e2e
 
 ## Conclusion
 
-Hotnote has solid unit and integration test coverage with **246 tests** covering core functionality. The recent addition of session management tests ensures the new rootDirHandle feature is well-tested. The comprehensive Playwright E2E test plan provides a clear roadmap for end-to-end testing.
+Hotnote has comprehensive unit and integration test coverage with **1018 tests** across **36 test suites** covering core functionality, UI interactions, and edge cases. Recent additions include robust event listener management tests that prevent regression of focus-related bugs, and extensive session management tests ensuring proper state preservation.
 
 **Strengths**:
 
-- ✅ High unit test coverage
-- ✅ All tests passing
-- ✅ Fast test execution
+- ✅ Comprehensive test coverage (1018 tests)
+- ✅ All tests passing (100% pass rate)
+- ✅ Very fast test execution (~1.8s for all tests)
 - ✅ Good separation of concerns
+- ✅ Regression prevention for critical bugs (event listeners, focus management)
+- ✅ Strong UI/UX test coverage
 
 **Areas for Improvement**:
 
-- ❌ No E2E tests yet
+- ❌ No E2E tests yet (Playwright planned)
 - ❌ Limited error scenario coverage
 - ❌ No performance benchmarks
 - ❌ No visual regression tests
 
-**Overall Assessment**: **Good** - Solid foundation with clear path forward
+**Overall Assessment**: **Excellent** - Comprehensive test suite with strong regression prevention

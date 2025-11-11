@@ -281,6 +281,7 @@ describe('File Picker', () => {
       appState.previousFilename = 'important.js';
       appState.currentFileHandle = null; // Cleared by breadcrumb navigation
       appState.currentFilename = '';
+      appState.isNavigatingBreadcrumbs = true; // In breadcrumb navigation mode
 
       hideFilePicker();
 
@@ -332,6 +333,7 @@ describe('File Picker', () => {
       appState.currentPath = [{ name: 'root' }]; // Truncated by breadcrumb navigation
       appState.currentFileHandle = null;
       appState.currentFilename = '';
+      appState.isNavigatingBreadcrumbs = true; // In breadcrumb navigation mode
 
       hideFilePicker();
 
@@ -522,6 +524,240 @@ describe('File Picker', () => {
       }
 
       await promise;
+    });
+  });
+
+  describe('Event Listener Management', () => {
+    it('should attach blur handler exactly once when calling quickFileCreate multiple times', async () => {
+      const mockDirHandle = createMockDirectoryHandle('test-dir', []);
+      appState.currentDirHandle = mockDirHandle;
+      appState.currentPath = [{ name: 'test-dir', handle: mockDirHandle }];
+      FileSystemAdapter.listDirectory.mockResolvedValue([]);
+
+      // Track addEventListener calls
+      const addEventListenerSpy = vi.fn();
+      let capturedInput = null;
+
+      // Intercept createElement to spy on the input element
+      const originalCreateElement = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
+        const element = originalCreateElement(tagName);
+        if (tagName === 'input' && !capturedInput) {
+          capturedInput = element;
+          const originalAddEventListener = element.addEventListener.bind(element);
+          element.addEventListener = (event, handler, options) => {
+            addEventListenerSpy(event, handler, options);
+            originalAddEventListener(event, handler, options);
+          };
+        }
+        return element;
+      });
+
+      // First call - should attach listeners
+      quickFileCreate(''); // Start but don't await yet
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(capturedInput).toBeTruthy();
+      expect(capturedInput.dataset.hasListeners).toBe('true');
+
+      // Count blur listeners from first call
+      // Note: There are intentionally 2 blur handlers:
+      // 1. Main blur handler for canceling
+      // 2. Cleanup blur handler with { once: true } for cleaning up measureSpan
+      const blurCallsAfterFirst = addEventListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'blur'
+      ).length;
+
+      expect(blurCallsAfterFirst).toBe(2);
+
+      // Second call - should NOT attach new listeners
+      // Since input already exists with hasListeners, this should return immediately
+      quickFileCreate(''); // Returns null immediately via early return
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Count blur listeners after second call - should be same as after first
+      const blurCallsAfterSecond = addEventListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'blur'
+      ).length;
+
+      expect(blurCallsAfterSecond).toBe(2); // Still only 2 blur listeners (no duplicates)
+
+      // Third call - still should NOT attach new listeners
+      quickFileCreate(''); // Returns null immediately via early return
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const blurCallsAfterThird = addEventListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'blur'
+      ).length;
+
+      expect(blurCallsAfterThird).toBe(2); // Still only 2 blur listeners (no duplicates)
+
+      // Cancel the first (still active) promise
+      const input = document.querySelector('.breadcrumb-input');
+      if (input) {
+        const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+        input.dispatchEvent(escapeEvent);
+      }
+
+      // Wait for cleanup
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Restore original createElement
+      document.createElement.mockRestore();
+    });
+
+    it('should attach focus handler exactly once', async () => {
+      const mockDirHandle = createMockDirectoryHandle('test-dir', []);
+      appState.currentDirHandle = mockDirHandle;
+      appState.currentPath = [{ name: 'test-dir', handle: mockDirHandle }];
+      FileSystemAdapter.listDirectory.mockResolvedValue([]);
+
+      const addEventListenerSpy = vi.fn();
+      let capturedInput = null;
+
+      const originalCreateElement = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
+        const element = originalCreateElement(tagName);
+        if (tagName === 'input' && !capturedInput) {
+          capturedInput = element;
+          const originalAddEventListener = element.addEventListener.bind(element);
+          element.addEventListener = (event, handler, options) => {
+            addEventListenerSpy(event, handler, options);
+            originalAddEventListener(event, handler, options);
+          };
+        }
+        return element;
+      });
+
+      // First call
+      quickFileCreate('');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const focusCallsAfterFirst = addEventListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'focus'
+      ).length;
+
+      // Second call - returns immediately
+      quickFileCreate('');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const focusCallsAfterSecond = addEventListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'focus'
+      ).length;
+
+      expect(focusCallsAfterSecond).toBe(focusCallsAfterFirst); // No new focus listeners
+
+      // Cancel to clean up
+      const input = document.querySelector('.breadcrumb-input');
+      if (input) {
+        const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+        input.dispatchEvent(escapeEvent);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      document.createElement.mockRestore();
+    });
+
+    it('should attach keydown handler exactly once', async () => {
+      const mockDirHandle = createMockDirectoryHandle('test-dir', []);
+      appState.currentDirHandle = mockDirHandle;
+      appState.currentPath = [{ name: 'test-dir', handle: mockDirHandle }];
+      FileSystemAdapter.listDirectory.mockResolvedValue([]);
+
+      const addEventListenerSpy = vi.fn();
+      let capturedInput = null;
+
+      const originalCreateElement = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation((tagName) => {
+        const element = originalCreateElement(tagName);
+        if (tagName === 'input' && !capturedInput) {
+          capturedInput = element;
+          const originalAddEventListener = element.addEventListener.bind(element);
+          element.addEventListener = (event, handler, options) => {
+            addEventListenerSpy(event, handler, options);
+            originalAddEventListener(event, handler, options);
+          };
+        }
+        return element;
+      });
+
+      // First call
+      quickFileCreate('');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const keydownCallsAfterFirst = addEventListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'keydown'
+      ).length;
+
+      // Second and third calls - both return immediately
+      quickFileCreate('');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      quickFileCreate('');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const keydownCallsAfterMultiple = addEventListenerSpy.mock.calls.filter(
+        (call) => call[0] === 'keydown'
+      ).length;
+
+      expect(keydownCallsAfterMultiple).toBe(keydownCallsAfterFirst); // No new keydown listeners
+
+      // Cancel to clean up
+      const input = document.querySelector('.breadcrumb-input');
+      if (input) {
+        const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+        input.dispatchEvent(escapeEvent);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      document.createElement.mockRestore();
+    });
+
+    it('should update breadcrumb path without reattaching listeners', async () => {
+      const mockDirHandle = createMockDirectoryHandle('test-dir', []);
+      appState.currentDirHandle = mockDirHandle;
+      appState.currentPath = [
+        { name: 'root', handle: mockDirHandle },
+        { name: 'subfolder', handle: mockDirHandle },
+      ];
+      FileSystemAdapter.listDirectory.mockResolvedValue([]);
+
+      // Ensure breadcrumb is clean
+      const breadcrumb = document.getElementById('breadcrumb');
+      breadcrumb.innerHTML = '';
+
+      // First call - create input
+      quickFileCreate('');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const input = document.querySelector('.breadcrumb-input');
+      expect(input).toBeTruthy();
+      expect(input.dataset.hasListeners).toBe('true');
+
+      const pathItemsAfterFirst = document.querySelectorAll('.breadcrumb-item');
+      expect(pathItemsAfterFirst.length).toBe(2); // root, subfolder
+
+      // Truncate path (simulating breadcrumb navigation)
+      appState.currentPath = [{ name: 'root', handle: mockDirHandle }];
+
+      // Second call - should update path without reattaching listeners
+      // This returns '__SKIP__' immediately since input already exists
+      quickFileCreate('');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const pathItemsAfterSecond = document.querySelectorAll('.breadcrumb-item');
+      expect(pathItemsAfterSecond.length).toBe(1); // Only root now
+
+      // Input should be the same element
+      const inputAfter = document.querySelector('.breadcrumb-input');
+      expect(inputAfter).toBe(input); // Same element reference
+
+      // Cancel to clean up
+      if (input) {
+        const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true });
+        input.dispatchEvent(escapeEvent);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
     });
   });
 
@@ -761,6 +997,40 @@ describe('File Picker', () => {
       resizeHandleElement.dispatchEvent(clickEvent);
 
       expect(filePickerElement.classList.contains('hidden')).toBe(false);
+    });
+
+    it('should restore file when clicking away after navbar focus', () => {
+      setupFilePickerClickAway();
+
+      // Setup: file is open
+      const originalFile = createMockFileHandle('test.js', 'content');
+      appState.currentFileHandle = originalFile;
+      appState.currentFilename = 'test.js';
+      appState.previousFileHandle = null;
+      appState.previousFilename = '';
+      appState.isNavigatingBreadcrumbs = false;
+
+      // Simulate clicking navbar (gains focus, shows picker, saves file)
+      appState.previousFileHandle = originalFile;
+      appState.previousFilename = 'test.js';
+      appState.isNavigatingBreadcrumbs = true;
+      appState.currentFileHandle = null;
+      appState.currentFilename = '';
+      filePickerElement.classList.remove('hidden');
+
+      // Verify file was cleared
+      expect(appState.currentFileHandle).toBeNull();
+
+      // Click away from picker (should restore file, like pressing Esc twice)
+      const clickEvent = new MouseEvent('click', { bubbles: true });
+      document.body.dispatchEvent(clickEvent);
+
+      // Picker should be closed
+      expect(filePickerElement.classList.contains('hidden')).toBe(true);
+
+      // File should be restored (same as pressing Esc twice)
+      expect(appState.currentFileHandle).toBe(originalFile);
+      expect(appState.currentFilename).toBe('test.js');
     });
   });
 

@@ -131,6 +131,8 @@ const updateBreadcrumb = () => {
     saveTempChanges,
   });
 };
+// Expose for file-picker module
+window.updateBreadcrumb = updateBreadcrumb;
 
 // Initialize editor (EditorManager for markdown, CodeMirror for other files)
 const initEditor = async (initialContent = '', filename = 'untitled') => {
@@ -189,7 +191,6 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     const initialMode = appState.isRestoringSession
       ? localStorage.getItem(`mode_${filename}`) || 'wysiwyg'
       : 'wysiwyg';
-    console.log('[Editor] Initializing EditorManager for markdown. Initial mode:', initialMode);
 
     appState.editorManager = new EditorManager(
       editorContainer,
@@ -198,14 +199,12 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
       handleContentChange
     );
     await appState.editorManager.ready();
-    console.log('[Editor] EditorManager initialized');
 
     // Initialize TOC and suggested links for markdown files
     updateTOC();
     await updateSuggestedLinks();
   } else {
     // Use CodeMirror directly for non-markdown files
-    console.log('[Editor] Initializing CodeMirror for non-markdown file');
     await initCodeMirrorEditor(initialContent, filename, handleContentChange);
     updateTOC(); // Hide TOC for non-markdown files
   }
@@ -471,11 +470,9 @@ const updateRichToggleButton = () => {
 // Toggle between rich and source mode for markdown files
 const toggleRichMode = async () => {
   if (!isMarkdownFile(appState.currentFilename) || !appState.editorManager) {
-    console.log('[RichMode] Not a markdown file or no editor manager, skipping toggle');
     return;
   }
 
-  console.log('[RichMode] Toggling mode via EditorManager');
   await appState.editorManager.toggleMode();
 
   // Save mode preference to localStorage
@@ -585,8 +582,6 @@ const attachTOCEventListeners = () => {
   const tocItems = document.querySelectorAll('.toc-item');
   const chevrons = document.querySelectorAll('.toc-chevron');
 
-  console.log('[TOC] Attaching event listeners to', tocItems.length, 'items');
-
   // Click on heading text to scroll
   tocItems.forEach((item) => {
     const textSpan = item.querySelector('.toc-text');
@@ -594,18 +589,14 @@ const attachTOCEventListeners = () => {
       // Prevent mousedown from stealing focus from the editor
       textSpan.addEventListener('mousedown', (e) => {
         e.preventDefault(); // Critical: prevents focus from leaving the editor
-        console.log('[TOC] Mousedown prevented - maintaining editor focus');
       });
 
       textSpan.addEventListener('click', (e) => {
         e.stopPropagation();
         e.preventDefault();
         const pos = parseInt(item.dataset.pos, 10);
-        console.log('[TOC] Clicked heading at position:', pos);
 
         const editor = appState.editorManager?.getActiveEditor();
-        console.log('[TOC] Editor manager:', appState.editorManager);
-        console.log('[TOC] Active editor:', editor);
 
         if (editor && editor.scrollToPosition) {
           // Block session saves during TOC navigation to prevent scroll reset
@@ -613,19 +604,14 @@ const attachTOCEventListeners = () => {
             clearTimeout(window.blockSessionSave);
           }
           window.blockSessionSave = true;
-          console.log('[TOC] Session saves blocked during navigation');
 
           // Scroll to the position (focus should be maintained by mousedown prevention)
-          console.log('[TOC] Calling scrollToPosition with:', pos);
           editor.scrollToPosition(pos);
 
           // Re-enable session saves after scroll completes (200ms should be enough)
           setTimeout(() => {
             window.blockSessionSave = false;
-            console.log('[TOC] Session saves re-enabled');
           }, 200);
-
-          console.log('[TOC] Scroll completed, focus maintained by mousedown handler');
         } else {
           console.error('[TOC] Editor or scrollToPosition not available');
         }
@@ -665,8 +651,6 @@ const attachTOCEventListeners = () => {
   const tocContainer = document.getElementById('markdown-toc');
   const tocContent = document.getElementById('toc-content');
 
-  console.log('[TOC] Setting up focus prevention on sidebar:', markdownSidebar);
-
   // Apply to all TOC-related elements to be thorough
   [markdownSidebar, tocContainer, tocContent].forEach((element) => {
     if (element) {
@@ -674,7 +658,6 @@ const attachTOCEventListeners = () => {
       element.removeEventListener('mousedown', preventTOCMousedown, true);
       // Add capture-phase listener
       element.addEventListener('mousedown', preventTOCMousedown, true);
-      console.log('[TOC] Added mousedown prevention to:', element.id);
     }
   });
 
@@ -691,13 +674,6 @@ const attachTOCEventListeners = () => {
       const inEditor = editorWrapper && editorWrapper.contains(e.target);
 
       if (inTOC || inEditor) {
-        console.log(
-          '[Focus] Document-level mousedown in',
-          inTOC ? 'TOC' : 'Editor',
-          'area, target:',
-          e.target
-        );
-
         // Only prevent default if clicking on non-interactive background elements
         const isBackgroundElement =
           e.target.id === 'markdown-sidebar' ||
@@ -710,7 +686,6 @@ const attachTOCEventListeners = () => {
 
         if (isBackgroundElement) {
           e.preventDefault();
-          console.log('[Focus] Prevented background click from stealing focus');
         }
 
         // Ensure editor maintains focus when clicking in these areas
@@ -723,7 +698,6 @@ const attachTOCEventListeners = () => {
             // Use a very short delay to let other handlers complete first
             setTimeout(() => {
               editor.focus();
-              console.log('[Focus] Editor re-focused from document-level handler');
             }, 10);
           }
         }
@@ -737,15 +711,6 @@ const attachTOCEventListeners = () => {
 function preventTOCMousedown(e) {
   e.preventDefault();
   e.stopPropagation();
-  console.log(
-    '[TOC] Mousedown prevented on:',
-    e.target,
-    'target ID:',
-    e.target.id,
-    'target class:',
-    e.target.className,
-    'maintaining editor focus'
-  );
 
   // NOTE: Do NOT call editor.focus() here!
   // Calling focus scrolls to current cursor position, interfering with TOC navigation
@@ -948,8 +913,6 @@ const openFolder = async () => {
     // Try to restore last open file
     if (sessionData.session && sessionData.session.lastOpenFile) {
       const lastFile = sessionData.session.lastOpenFile;
-      console.log('[Session] Attempting to restore last file:', lastFile.path);
-      console.log('[Session] Session data for file:', JSON.stringify(lastFile, null, 2));
 
       // Set flag to indicate we're restoring from session
       appState.isRestoringSession = true;
@@ -958,23 +921,56 @@ const openFolder = async () => {
       if (lastFile.editorMode !== undefined) {
         const filename = lastFile.path.split('/').pop();
         localStorage.setItem(`mode_${filename}`, lastFile.editorMode);
-        console.log('[Session] Saved mode preference for restoration:', lastFile.editorMode);
       }
 
-      const opened = await openFileByPath(appState.rootDirHandle, lastFile.path);
-      console.log('File opened successfully:', opened);
+      const result = await openFileByPath(appState.rootDirHandle, lastFile.path);
+
+      if (result) {
+        // Rebuild currentPath from the session path
+        const pathParts = lastFile.path.split('/').filter((p) => p);
+        pathParts.pop(); // Remove filename
+
+        // Build path array with handles
+        const newPath = [{ name: appState.rootDirHandle.name, handle: appState.rootDirHandle }];
+
+        // Navigate and build path for subdirectories (if any)
+        let currentHandle = appState.rootDirHandle;
+        for (const dirName of pathParts) {
+          try {
+            currentHandle = await currentHandle.getDirectoryHandle(dirName);
+            newPath.push({ name: dirName, handle: currentHandle });
+          } catch (err) {
+            console.error('[Session] Error navigating to directory:', dirName, err);
+            break;
+          }
+        }
+
+        // Update state with correct path
+        appState.currentPath = newPath;
+        appState.currentDirHandle = result.dirHandle;
+
+        // Actually open the file with the retrieved handle
+        await openFileFromPicker(result.fileHandle);
+        fileRestored = true;
+      } else {
+        // File could not be found - show helpful message
+        console.warn('[Session] Could not restore file:', lastFile.path);
+        console.warn('[Session] File may not exist in this folder or may have been deleted');
+
+        // Show notification to user (if notification system exists)
+        if (window.showFileReloadNotification) {
+          window.showFileReloadNotification(`Could not find: ${lastFile.path.split('/').pop()}`);
+        }
+      }
 
       // Clear the flag
       appState.isRestoringSession = false;
 
-      if (opened) {
-        fileRestored = true;
-
+      if (fileRestored) {
         // Wait for editor to be ready, then restore cursor and scroll
         setTimeout(async () => {
           if (appState.editorManager) {
             // Markdown file - using EditorManager
-            console.log('[Session] Restoring EditorManager state');
             await appState.editorManager.ready();
 
             // Restore cursor and scroll position
@@ -985,15 +981,8 @@ const openFolder = async () => {
               appState.editorManager.setScrollPosition(lastFile.scrollTop);
             }
             appState.editorManager.focus();
-
-            console.log('[Session] EditorManager state restored:', {
-              line: lastFile.cursorLine,
-              column: lastFile.cursorColumn,
-              scroll: lastFile.scrollTop,
-            });
           } else if (appState.editorView) {
             // Non-markdown file - using CodeMirror
-            console.log('[Session] Restoring CodeMirror state');
 
             // Restore cursor position
             if (lastFile.cursorLine !== undefined && lastFile.cursorColumn !== undefined) {
@@ -1018,8 +1007,6 @@ const openFolder = async () => {
               appState.editorView.scrollDOM.scrollLeft = lastFile.scrollLeft;
             }
             appState.editorView.focus();
-
-            console.log('[Session] CodeMirror state restored');
           }
 
           // Update UI
@@ -1027,7 +1014,6 @@ const openFolder = async () => {
 
           // Mark restoration time to prevent premature saves
           appState.lastRestorationTime = Date.now();
-          console.log('[Session] Restoration complete, blocking saves for 1 second');
         }, 100);
       }
     }
@@ -1531,7 +1517,6 @@ document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
   animateAutosaveLabel(e.target.checked);
 });
 document.getElementById('rich-toggle-btn').addEventListener('click', () => {
-  console.log('[RichMode] Rich toggle button clicked');
   appState.focusManager.saveFocusState();
   toggleRichMode();
 });
@@ -1660,7 +1645,7 @@ document.addEventListener('keydown', (e) => {
   appState.focusManager.focusEditor({ reason: 'enter-key' });
 });
 
-// Global Escape key listener to blur editor and show search
+// Global Escape key listener to blur editor and show file picker
 document.addEventListener('keydown', async (e) => {
   if (e.key !== 'Escape') {
     return;
@@ -1673,14 +1658,15 @@ document.addEventListener('keydown', async (e) => {
 
   // Check if editor has focus
   if (appState.focusManager.hasEditorFocus()) {
-    // Blur the active element (editor) and show search box
+    // Blur the active element (editor) and show file picker
     e.preventDefault();
     document.activeElement.blur();
 
-    // Show search box if we have a directory context
+    // Show file picker if we have a directory context
+    // This saves current file, shows picker with file list, and focuses search input
     if (appState.currentDirHandle) {
-      await quickFileCreate('');
-      // Select all text in the input
+      await showFilePicker(appState.currentDirHandle);
+      // Select all text in the search input (quickFileCreate is called by showFilePicker)
       const input = document.querySelector('.breadcrumb-input');
       if (input) {
         input.select();
@@ -1713,7 +1699,6 @@ function updateEditorBlurState() {
     if (isFocusOnNothing) {
       // Focus went nowhere - don't blur, but also DON'T restore focus
       // Restoring focus can trigger scroll resets during TOC navigation
-      console.log('[Focus] Focus went nowhere, maintaining current state without blur');
       // Note: NOT calling editor.focus() here to avoid scroll interference
     } else {
       // Focus went to a real element (like search box, button, etc) - blur is OK
@@ -1723,13 +1708,11 @@ function updateEditorBlurState() {
 }
 
 // Monitor focus changes to update blur state
-document.addEventListener('focusin', (e) => {
-  console.log('[Focus] focusin event, target:', e.target);
+document.addEventListener('focusin', () => {
   updateEditorBlurState();
 });
 
-document.addEventListener('focusout', (e) => {
-  console.log('[Focus] focusout event, target:', e.target, 'relatedTarget:', e.relatedTarget);
+document.addEventListener('focusout', () => {
   // Use setTimeout to allow focus to shift to new element
   setTimeout(() => {
     updateEditorBlurState();
