@@ -11,7 +11,7 @@ import { createAutosaveManager, animateAutosaveLabel } from './src/editor/autosa
 import { createFileSyncManager } from './src/storage/file-sync.js';
 import { appState } from './src/state/app-state.js';
 import { debounce } from './src/utils/helpers.js';
-import { updateBreadcrumb } from './src/ui/breadcrumb.js';
+import { updateBreadcrumb as updateBreadcrumbCore } from './src/ui/breadcrumb.js';
 import {
   addToHistory,
   goBack,
@@ -120,6 +120,15 @@ const getEditorContent = () => {
     return appState.editorView.state.doc.toString();
   }
   return '';
+};
+
+// Wrapper for updateBreadcrumb with required callbacks
+const updateBreadcrumb = () => {
+  updateBreadcrumbCore({
+    openFolder,
+    showFilePicker,
+    saveFocusState: () => appState.focusManager.saveFocusState(),
+  });
 };
 
 // Initialize editor (EditorManager for markdown, CodeMirror for other files)
@@ -979,11 +988,16 @@ const openFolder = async () => {
             // Restore cursor position
             if (lastFile.cursorLine !== undefined && lastFile.cursorColumn !== undefined) {
               const doc = appState.editorView.state.doc;
-              const line = doc.line(lastFile.cursorLine + 1); // Convert to 1-based
-              const pos = line.from + Math.min(lastFile.cursorColumn, line.length);
-              appState.editorView.dispatch({
-                selection: { anchor: pos, head: pos },
-              });
+              const targetLine = lastFile.cursorLine + 1; // Convert to 1-based
+
+              // Validate line number is within document bounds
+              if (targetLine >= 1 && targetLine <= doc.lines) {
+                const line = doc.line(targetLine);
+                const pos = line.from + Math.min(lastFile.cursorColumn, line.length);
+                appState.editorView.dispatch({
+                  selection: { anchor: pos, head: pos },
+                });
+              }
             }
 
             // Restore scroll position
