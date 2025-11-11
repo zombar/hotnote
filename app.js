@@ -216,6 +216,9 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
   appState.focusManager.setEditors(appState.editorManager, appState.editorView);
 };
 
+// Expose initEditor for file-picker module
+window.initEditor = initEditor;
+
 // Initialize CodeMirror editor
 const initCodeMirrorEditor = async (
   initialContent = '',
@@ -379,6 +382,9 @@ const updateLogoState = () => {
     }
   }
 };
+
+// Expose updateLogoState for file-picker module
+window.updateLogoState = updateLogoState;
 
 // Setup hover interaction for logo expansion/collapse
 const setupLogoHoverInteraction = (logo) => {
@@ -885,6 +891,9 @@ const isFileSystemAccessSupported = () => {
   return FileSystemAdapter.isSupported();
 };
 
+// Expose isFileSystemAccessSupported for file-picker module
+window.isFileSystemAccessSupported = isFileSystemAccessSupported;
+
 // Open folder
 const openFolder = async () => {
   if (!isFileSystemAccessSupported()) {
@@ -1039,6 +1048,9 @@ const openFolder = async () => {
     }
   }
 };
+
+// Expose openFolder for file-picker module
+window.openFolder = openFolder;
 
 // Show file picker for a directory
 
