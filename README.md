@@ -1,8 +1,8 @@
 # [hotnote.io](https://hotnote.io)
 
-![Tests](https://img.shields.io/badge/tests-266%20passing-success)
+![Tests](https://img.shields.io/badge/tests-1018%20passing-success)
 ![Build](https://img.shields.io/badge/build-passing-success)
-![Size](https://img.shields.io/badge/size-503KB%20gzipped-blue)
+![Size](https://img.shields.io/badge/size-514KB%20gzipped-blue)
 
 Minimalist online code editor with local filesystem access.
 
@@ -52,7 +52,7 @@ make validate  # lint + format checks
 make coverage  # run tests with coverage report
 ```
 
-**266 tests** covering core functionality, file operations, navigation, and edge cases.
+**1018 tests** covering core functionality, file operations, navigation, edge cases, and event listener management.
 
 ## Browser Support
 

@@ -1,6 +1,12 @@
 ## TODO
 
+* Need some sort of diff resolution, if the file changes on the underlying storage tell the user about the changes before reloading the file - use the toaster to display a persistent message 'reload file with changes? \[Y] \[X]' - it should work a bit like a merge conflict
+
+* When clicking a breadcrumb with the filepicker closed the breadcrumbs bar should be updated with the new location -> the filename text should be cleared and caret shown -> the file picker should be shown. When clicking a breadcrumb with the file picker open should: update the breadcrumb to the new location -> the filename should still be cleared and caret showing -> the file picker should be updated to the new location.
+
 * is the reload button broken for the new version popup?
+
+* need to replace intellisense functionality somehow (1B local inferencing?)
 
 * scrollbar is weird on the document viewer rich text window since adding TOC
 
@@ -78,4 +84,5 @@ npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supporte
 npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
 npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
 ```
-- don't clear the trash automatically, offer a toaster popup to the user when opening the workspace 'take out the trash?'
+
+* don't clear the trash automatically, offer a toaster popup to the user when opening the workspace 'take out the trash?'

@@ -19,6 +19,12 @@ class AppState {
     this.rootDirHandle = null; // The initially opened directory (for session file)
     this.currentPath = []; // Array of {name, handle} objects
 
+    // Previous file state (for restoration when canceling breadcrumb navigation)
+    this.previousFileHandle = null;
+    this.previousFilename = '';
+    this.previousPath = null; // For restoring path when canceling breadcrumb navigation
+    this.isNavigatingBreadcrumbs = false; // Flag to enable restoration on picker close
+
     // Navigation state
     this.navigationHistory = [];
     this.historyIndex = -1;
@@ -170,6 +176,10 @@ class AppState {
     this.currentDirHandle = null;
     this.rootDirHandle = null;
     this.currentPath = [];
+    this.previousFileHandle = null;
+    this.previousFilename = '';
+    this.previousPath = null;
+    this.isNavigatingBreadcrumbs = false;
     this.navigationHistory = [];
     this.historyIndex = -1;
     this.isPopStateNavigation = false;

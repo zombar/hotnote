@@ -118,7 +118,9 @@ test.describe('File Picker Navigation with Open Files', () => {
     await page.waitForSelector('[data-testid="editor"]');
   });
 
-  test('should preserve file handle when showing file picker', async ({ page }) => {
+  test('should temporarily clear file when showing file picker via breadcrumb', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.waitForSelector('[data-testid="editor"]');
 
@@ -138,13 +140,17 @@ test.describe('File Picker Navigation with Open Files', () => {
     await breadcrumb.click();
     await page.waitForTimeout(100);
 
-    // File handle should STILL be set (this is the fix we want)
+    // File should be temporarily cleared when breadcrumb is clicked
     const hasHandleAfter = await page.evaluate(() => window.currentFileHandle !== null);
     const filenameAfter = await page.evaluate(() => window.currentFilename);
 
-    // These assertions document the EXPECTED behavior after fix
-    expect(hasHandleAfter).toBeTruthy();
-    expect(filenameAfter).toBe('keepme.md');
+    // File should be cleared when navigating breadcrumb
+    expect(hasHandleAfter).toBeFalsy();
+    expect(filenameAfter).toBe('');
+
+    // But previous file state should be saved
+    const hasPreviousFile = await page.evaluate(() => window.previousFileHandle !== null);
+    expect(hasPreviousFile).toBeTruthy();
   });
 
   test('should show file picker when breadcrumb is clicked', async ({ page }) => {
@@ -163,7 +169,34 @@ test.describe('File Picker Navigation with Open Files', () => {
     expect(pickerExists).toBeGreaterThan(0);
   });
 
-  test('should allow clicking away from picker to close it', async ({ page }) => {
+  test('should focus search input on first breadcrumb click', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('[data-testid="breadcrumb"]');
+
+    // Setup: Open a folder so breadcrumb is interactive
+    await page.evaluate(() => {
+      if (!window.currentDirHandle) {
+        window.currentDirHandle = { name: 'test-folder', kind: 'directory' };
+        window.currentPath = [{ name: 'test-folder', handle: window.currentDirHandle }];
+        if (window.updateBreadcrumb) {
+          window.updateBreadcrumb();
+        }
+      }
+    });
+
+    const breadcrumb = page.getByTestId('breadcrumb');
+
+    // Click breadcrumb ONCE
+    await breadcrumb.click();
+    await page.waitForTimeout(100);
+
+    // Search input should exist and be focused
+    const input = page.locator('.breadcrumb-input');
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+  });
+
+  test('should restore file when clicking away from picker without selecting', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('[data-testid="editor"]');
 
@@ -173,38 +206,49 @@ test.describe('File Picker Navigation with Open Files', () => {
       window.currentFilename = 'persistent.md';
     });
 
-    // Click breadcrumb to maybe show picker
+    // Click breadcrumb to show picker (this clears the file temporarily)
     const breadcrumb = page.getByTestId('breadcrumb');
     await breadcrumb.click();
     await page.waitForTimeout(100);
+
+    // Verify file was cleared
+    const clearedState = await page.evaluate(() => ({
+      hasHandle: window.currentFileHandle !== null,
+      hasPrevious: window.previousFileHandle !== null,
+    }));
+    expect(clearedState.hasHandle).toBeFalsy();
+    expect(clearedState.hasPrevious).toBeTruthy();
 
     // Click editor to close picker
     const editor = page.getByTestId('editor');
     await editor.click();
     await page.waitForTimeout(100);
 
-    // File should still be set
-    const stillHasFile = await page.evaluate(() => ({
+    // File should be restored after closing picker without selection
+    const restoredState = await page.evaluate(() => ({
       hasHandle: window.currentFileHandle !== null,
       filename: window.currentFilename,
+      hasPrevious: window.previousFileHandle !== null,
     }));
 
-    expect(stillHasFile.hasHandle).toBeTruthy();
-    expect(stillHasFile.filename).toBe('persistent.md');
+    expect(restoredState.hasHandle).toBeTruthy();
+    expect(restoredState.filename).toBe('persistent.md');
+    expect(restoredState.hasPrevious).toBeFalsy(); // Previous state should be cleared
   });
 
-  test('should handle multiple breadcrumb navigations without losing file', async ({ page }) => {
+  test('should restore file and path after breadcrumb navigation cancel', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('[data-testid="editor"]');
 
-    // Set up initial file state
+    // Set up initial file and path state
     await page.evaluate(() => {
       window.currentFileHandle = { name: 'stable.md', kind: 'file' };
       window.currentFilename = 'stable.md';
-      window.currentDirHandle = { name: 'dir1', kind: 'directory' };
+      window.currentDirHandle = { name: 'components', kind: 'directory' };
       window.currentPath = [
         { name: 'root', handle: { name: 'root', kind: 'directory' } },
-        { name: 'dir1', handle: window.currentDirHandle },
+        { name: 'src', handle: { name: 'src', kind: 'directory' } },
+        { name: 'components', handle: window.currentDirHandle },
       ];
 
       if (typeof window.updateBreadcrumb === 'function') {
@@ -213,22 +257,45 @@ test.describe('File Picker Navigation with Open Files', () => {
     });
 
     const breadcrumb = page.getByTestId('breadcrumb');
+    const editor = page.getByTestId('editor');
 
-    // Click breadcrumb multiple times
-    await breadcrumb.click();
+    // Click first breadcrumb item to navigate to shallower path
+    const firstItem = breadcrumb.locator('.breadcrumb-item').first();
+    await firstItem.click();
     await page.waitForTimeout(100);
 
-    await breadcrumb.click();
-    await page.waitForTimeout(100);
-
-    // File should STILL be preserved
-    const fileState = await page.evaluate(() => ({
-      hasHandle: window.currentFileHandle !== null,
-      filename: window.currentFilename,
+    // Path should be truncated and previous state saved
+    let state = await page.evaluate(() => ({
+      currentPathLength: window.currentPath?.length || 0,
+      previousPathLength: window.previousPath?.length || 0,
+      hasFile: window.currentFileHandle !== null,
+      hasPreviousFile: window.previousFileHandle !== null,
     }));
 
-    expect(fileState.hasHandle).toBeTruthy();
-    expect(fileState.filename).toBe('stable.md');
+    // After breadcrumb click: path truncated, file cleared, previous states saved
+    expect(state.currentPathLength).toBeLessThan(3); // Truncated
+    expect(state.previousPathLength).toBe(3); // Original saved
+    expect(state.hasFile).toBeFalsy(); // File cleared
+    expect(state.hasPreviousFile).toBeTruthy(); // Previous file saved
+
+    // Close picker without selection
+    await editor.click();
+    await page.waitForTimeout(100);
+
+    // Both file and path should be restored
+    state = await page.evaluate(() => ({
+      pathLength: window.currentPath?.length || 0,
+      filename: window.currentFilename,
+      hasFile: window.currentFileHandle !== null,
+      hasPreviousPath: window.previousPath !== null,
+      pathNames: window.currentPath?.map((p) => p.name) || [],
+    }));
+
+    expect(state.hasFile).toBeTruthy();
+    expect(state.filename).toBe('stable.md');
+    expect(state.pathLength).toBe(3); // Path restored
+    expect(state.pathNames).toEqual(['root', 'src', 'components']);
+    expect(state.hasPreviousPath).toBeFalsy(); // Previous state cleared
   });
 
   test('should not call initEditor with untitled when showing picker', async ({ page }) => {
@@ -268,4 +335,8 @@ test.describe('File Picker Navigation with Open Files', () => {
     // Currently might fail, showing the bug exists
     expect(untitledCalls.length).toBe(0);
   });
+
+  // Note: Comprehensive unit tests for breadcrumb navigation flow exist in
+  // tests/ui/breadcrumb-navigation-flow.test.js (10 tests covering all scenarios)
+  // E2E tests above cover the high-level browser behavior
 });
