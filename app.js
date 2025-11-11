@@ -1310,11 +1310,11 @@ const saveFile = async () => {
   }
 };
 
-const showFileReloadNotification = () => {
+const showFileReloadNotification = (message = 'Reloaded from disk') => {
   // Create toast notification
   const toast = document.createElement('div');
   toast.className = 'file-reload-toast';
-  toast.textContent = 'Reloaded from disk';
+  toast.textContent = message;
   document.body.appendChild(toast);
 
   // Show and auto-dismiss
@@ -1329,6 +1329,9 @@ const showFileReloadNotification = () => {
     }, 300);
   }, 2500);
 };
+
+// Expose showFileReloadNotification for file-picker module
+window.showFileReloadNotification = showFileReloadNotification;
 
 // Debounced version (save every 2 seconds)
 const debouncedSaveEditorState = createDebouncedSaveEditorState(getRelativeFilePath);

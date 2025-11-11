@@ -328,6 +328,11 @@ export const openFileFromPicker = async (fileHandle) => {
     window.updateLogoState();
     addToHistory();
 
+    // Show notification that file was loaded from disk
+    if (window.showFileReloadNotification) {
+      window.showFileReloadNotification('Loaded from disk');
+    }
+
     // Hide the file picker
     hideFilePicker();
 
@@ -1025,6 +1030,11 @@ export const createOrOpenFile = async (filePathOrName) => {
       await window.initEditor(content, actualFilename);
       appState.isDirty = false;
       appState.originalContent = content;
+
+      // Show notification that file was loaded from disk
+      if (window.showFileReloadNotification) {
+        window.showFileReloadNotification('Loaded from disk');
+      }
     } else {
       await FileSystemAdapter.writeFile(fileHandle, '');
       await window.initEditor('', actualFilename);
