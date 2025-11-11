@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.0](https://github.com/zombar/hotnote.io/compare/v1.15.0...v1.16.0) (2025-11-11)
+
+
+### Features
+
+* add file and workdir params ([#67](https://github.com/zombar/hotnote.io/issues/67)) ([0c26c0e](https://github.com/zombar/hotnote.io/commit/0c26c0ef4a29d32f427788d5dc8977bf4284da1d))
+
 ## [1.15.0](https://github.com/zombar/hotnote.io/compare/v1.14.1...v1.15.0) (2025-11-10)
 
 ### Features
