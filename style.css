@@ -222,6 +222,11 @@ header:has(.app-logo.compact) {
   -webkit-text-stroke: 1px rgb(128 128 128 / 40%);
 }
 
+/* Add space after T by default for "HOT NOTE" */
+.app-logo span:nth-child(3) {
+  margin-right: 0.3em;
+}
+
 [data-theme='dark'] .app-logo span {
   background: linear-gradient(135deg, #00d4ff 0%, #00e5ff 30%, #ff2d96 70%, #e91e8c 100%);
   background-clip: text;
@@ -288,7 +293,14 @@ body:not(.preload) .app-logo span {
   margin-right: 0.15em;
 }
 
-.app-logo.compact span:nth-child(3) {
+/* T loses its right margin (the space) - but delayed during animation */
+.app-logo.compact:not(.animating) span:nth-child(3) {
+  margin-right: 0;
+}
+
+/* During compact animation, delay the space removal until after other letters disappear */
+.app-logo.compact.animating span:nth-child(3) {
+  transition: margin-right 0.15s ease 1.2s;
   margin-right: 0;
 }
 
@@ -351,7 +363,14 @@ body:not(.preload) .app-logo span {
   margin-right: 0;
 }
 
+/* Expanded state - space is always present */
 .app-logo.expanded span:nth-child(3) {
+  margin-right: 0.3em !important;
+}
+
+/* During expand animation, add the space immediately (first thing to appear) */
+.app-logo.expanded.animating span:nth-child(3) {
+  transition: margin-right 0.15s ease 0s;
   margin-right: 0.3em !important;
 }
 
