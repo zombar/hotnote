@@ -358,7 +358,7 @@ const initCodeMirrorEditor = async (
 let initialCollapseScheduled = false;
 
 // Update logo state based on whether a folder or file is open
-const updateLogoState = () => {
+const updateLogoState = (immediate = false) => {
   const logo = document.querySelector('.app-logo');
   if (logo && (appState.currentFileHandle || appState.currentDirHandle)) {
     // Check if this is the first time (initial load)
@@ -372,8 +372,8 @@ const updateLogoState = () => {
       // Set initial expanded state immediately (without animation)
       logo.classList.add('expanded');
 
-      // Wait 2.5 seconds before starting the initial collapse animation
-      // This avoids synchronous loading spike issues and gives smoother animation
+      // Delay before collapse animation (immediate = 0ms, normal = 2500ms)
+      const delay = immediate ? 0 : 2500;
       setTimeout(() => {
         // Only animate if still in expanded state
         if (logo.classList.contains('expanded')) {
@@ -386,7 +386,7 @@ const updateLogoState = () => {
             logo.classList.remove('animating');
           }, 1200);
         }
-      }, 2500);
+      }, delay);
     } else if (!isFirstLoad) {
       // Already initialized, just ensure compact state without animation
       if (!logo.classList.contains('expanded')) {
@@ -1013,7 +1013,7 @@ const openFolder = async () => {
     }
 
     updateBreadcrumb();
-    updateLogoState();
+    updateLogoState(true); // Animate immediately when folder is chosen
     updateNewButtonState();
   } catch (err) {
     if (err.name !== 'AbortError') {
