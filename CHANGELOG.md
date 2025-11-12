@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/zombar/hotnote.io/compare/v1.18.0...v1.18.1) (2025-11-12)
+
+
+### Bug Fixes
+
+* toc navigation broken after gitreader feat ([#77](https://github.com/zombar/hotnote.io/issues/77)) ([ba882f1](https://github.com/zombar/hotnote.io/commit/ba882f1452ba3f4d1ff18d4cda230c951e982b76))
+
 ## [1.18.0](https://github.com/zombar/hotnote.io/compare/v1.17.1...v1.18.0) (2025-11-12)
 
 
