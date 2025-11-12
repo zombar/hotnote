@@ -360,8 +360,8 @@ const updateLogoState = (immediate = false) => {
   const logo = document.querySelector('.app-logo');
   const hasWorkspace = appState.currentFileHandle || appState.currentDirHandle;
 
-  // Update footer visibility based on workspace state
-  if (hasWorkspace) {
+  // Update footer visibility based on workspace state or GitReader mode
+  if (hasWorkspace || appState.isGitHubMode) {
     document.body.setAttribute('data-has-workspace', 'true');
   } else {
     document.body.removeAttribute('data-has-workspace');
@@ -1539,6 +1539,9 @@ function exitGitHubReader() {
   // Update new button state to restore normal behavior
   updateNewButtonState();
 
+  // Update logo state to restore footer visibility
+  updateLogoState();
+
   console.log('Exited GitHub reader mode');
 }
 
@@ -1668,6 +1671,9 @@ async function initGitHubReader(githubUrl) {
 
     // Update new button state to keep it enabled in GitHub mode
     updateNewButtonState();
+
+    // Update logo state to hide footer in GitHub mode
+    updateLogoState();
 
     // Remove blur from editor
     if (editorContainer) {
