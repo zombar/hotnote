@@ -47,6 +47,10 @@ class AppState {
 
     // Focus management
     this.focusManager = new FocusManager();
+
+    // Theme state
+    this.needsEditorReinit = false; // Flag to reinit editor after theme change when file picker closes
+    this.pendingCursorRestore = null; // Cursor position to restore after theme toggle
   }
 
   // Getters

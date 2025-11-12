@@ -147,6 +147,16 @@ async function reinitializeEditorWithTheme() {
     return; // No editor to reinitialize
   }
 
+  // Skip editor reinitialization if file picker is open
+  // The CSS theme will still update, and we'll reinit when picker closes
+  const filePicker = document.getElementById('file-picker');
+  const isFilePickerOpen = filePicker && !filePicker.classList.contains('hidden');
+  if (isFilePickerOpen) {
+    // Mark that we need to reinit when the file picker closes
+    appState.needsEditorReinit = true;
+    return;
+  }
+
   // Get current editor content
 
   const currentContent =
@@ -159,15 +169,44 @@ async function reinitializeEditorWithTheme() {
   let scrollTop = 0;
   let scrollLeft = 0;
   let currentMode = null;
+  let cursorPosition = null;
 
   if (appState.editorView) {
     const scroller = appState.editorView.scrollDOM;
-    scrollTop = scroller.scrollTop;
-    scrollLeft = scroller.scrollLeft;
+    scrollTop = scroller?.scrollTop || 0;
+    scrollLeft = scroller?.scrollLeft || 0;
+    // Save cursor position for CodeMirror (if available)
+    try {
+      if (appState.editorView.state?.selection?.main) {
+        const pos = appState.editorView.state.selection.main.head;
+        const line = appState.editorView.state.doc.lineAt(pos);
+        cursorPosition = {
+          line: line.number - 1, // Convert to 0-based
+          column: pos - line.from,
+        };
+      }
+    } catch (_error) {
+      // Cursor position not available, skip
+    }
   } else if (appState.editorManager) {
-    scrollTop = appState.editorManager.getScrollPosition();
-    currentMode = appState.editorManager.getMode(); // Preserve current mode for markdown
+    scrollTop = appState.editorManager.getScrollPosition?.() || 0;
+    currentMode = appState.editorManager.getMode?.(); // Preserve current mode for markdown
+    // Save cursor position for EditorManager (if available)
+    try {
+      if (appState.editorManager.getCursor) {
+        cursorPosition = appState.editorManager.getCursor();
+      }
+    } catch (_error) {
+      // Cursor position not available, skip
+    }
   }
+
+  // Save cursor position and scroll to appState for restoration after editor init
+  appState.pendingCursorRestore = {
+    cursorPosition,
+    scrollTop,
+    scrollLeft,
+  };
 
   // Temporarily set appState.isRestoringSession to preserve the mode
   const wasRestoringSession = appState.isRestoringSession;
@@ -186,18 +225,5 @@ async function reinitializeEditorWithTheme() {
   // Restore previous session state
   appState.isRestoringSession = wasRestoringSession;
 
-  // Restore scroll position
-  setTimeout(() => {
-    if (appState.editorView) {
-      appState.editorView.scrollDOM.scrollTop = scrollTop;
-      appState.editorView.scrollDOM.scrollLeft = scrollLeft;
-    } else if (appState.editorManager) {
-      appState.editorManager.setScrollPosition(scrollTop);
-    }
-
-    // Restore focus after editor reinit
-    if (appState.focusManager) {
-      appState.focusManager.focusEditor({ reason: 'theme-toggle' });
-    }
-  }, 0);
+  // Cursor position will be restored by the code in app.js after editor initialization
 }
