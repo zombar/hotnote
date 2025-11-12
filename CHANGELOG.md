@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.19.0](https://github.com/zombar/hotnote.io/compare/v1.18.1...v1.19.0) (2025-11-12)
+
+
+### Features
+
+* logo animation tweaks ([#80](https://github.com/zombar/hotnote.io/issues/80)) ([4b79f42](https://github.com/zombar/hotnote.io/commit/4b79f425f1a82d1e977af5033cf3818633397eae))
+* made in wales footer ([#81](https://github.com/zombar/hotnote.io/issues/81)) ([ea2e7aa](https://github.com/zombar/hotnote.io/commit/ea2e7aa51c9256b81a17ee418df4ed2cae6c3559))
+
 ## [1.18.1](https://github.com/zombar/hotnote.io/compare/v1.18.0...v1.18.1) (2025-11-12)
 
 
