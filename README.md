@@ -1,6 +1,6 @@
 # [hotnote.io](https://hotnote.io)
 
-![Tests](https://img.shields.io/badge/tests-1018%20passing-success)
+![Tests](https://img.shields.io/badge/tests-1204%20passing-success)
 ![Build](https://img.shields.io/badge/build-passing-success)
 ![Size](https://img.shields.io/badge/size-514KB%20gzipped-blue)
 
