@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/zombar/hotnote.io/compare/v1.17.1...v1.18.0) (2025-11-12)
+
+
+### Features
+
+* improve github reader and UI enhancements ([#75](https://github.com/zombar/hotnote.io/issues/75)) ([92bbfcc](https://github.com/zombar/hotnote.io/commit/92bbfcca6194a10cf364401108d654437b286c05))
+
 ## [1.17.1](https://github.com/zombar/hotnote.io/compare/v1.17.0...v1.17.1) (2025-11-11)
 
 
