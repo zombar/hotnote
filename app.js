@@ -228,6 +228,63 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
 
   // Register editors with focus manager
   appState.focusManager.setEditors(appState.editorManager, appState.editorView);
+
+  // Restore cursor position and scroll if pending (from theme toggle)
+  if (appState.pendingCursorRestore) {
+    const { cursorPosition, scrollTop, scrollLeft } = appState.pendingCursorRestore;
+    appState.pendingCursorRestore = null;
+
+    // Use requestAnimationFrame + delay to ensure editor is fully rendered
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (appState.editorView) {
+          // Restore scroll for CodeMirror
+          if (appState.editorView.scrollDOM) {
+            appState.editorView.scrollDOM.scrollTop = scrollTop;
+            appState.editorView.scrollDOM.scrollLeft = scrollLeft;
+          }
+
+          // Restore cursor position for CodeMirror
+          if (cursorPosition && appState.editorView.state) {
+            try {
+              const doc = appState.editorView.state.doc;
+              const line = doc.line(cursorPosition.line + 1); // Convert back to 1-based
+              const pos = line.from + Math.min(cursorPosition.column, line.length);
+              appState.editorView.dispatch({
+                selection: { anchor: pos, head: pos },
+              });
+              if (appState.editorView.focus) {
+                appState.editorView.focus();
+              }
+            } catch (error) {
+              console.warn('[initEditor] Failed to restore cursor position:', error);
+            }
+          }
+        } else if (appState.editorManager) {
+          // Restore scroll for EditorManager
+          if (appState.editorManager.setScrollPosition) {
+            appState.editorManager.setScrollPosition(scrollTop);
+          }
+
+          // Restore cursor position for EditorManager (needs extra delay)
+          if (cursorPosition) {
+            setTimeout(() => {
+              try {
+                if (appState.editorManager.setCursor) {
+                  appState.editorManager.setCursor(cursorPosition.line, cursorPosition.column);
+                }
+                if (appState.editorManager.focus) {
+                  appState.editorManager.focus();
+                }
+              } catch (error) {
+                console.warn('[initEditor] Failed to restore cursor position:', error);
+              }
+            }, 100);
+          }
+        }
+      }, 50);
+    });
+  }
 };
 
 // Expose initEditor for file-picker module
@@ -1388,7 +1445,13 @@ document.getElementById('rich-toggle-btn').addEventListener('click', async () =>
     appState.focusManager?.focusEditor({ reason: 'rich-mode-toggle' });
   }, 0);
 });
-document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+// Theme toggle button - prevent it from stealing focus
+const darkModeToggle = document.getElementById('dark-mode-toggle');
+darkModeToggle.addEventListener('mousedown', (e) => {
+  // Prevent the button from taking focus when clicked
+  e.preventDefault();
+});
+darkModeToggle.addEventListener('click', () => {
   appState.focusManager.saveFocusState();
   toggleTheme();
 });

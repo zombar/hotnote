@@ -156,6 +156,13 @@ export const hideFilePicker = () => {
   appState.previousPath = null;
   appState.isNavigatingBreadcrumbs = false;
 
+  // Reinitialize editor if theme was toggled while picker was open
+  if (appState.needsEditorReinit && typeof window.initEditor !== 'undefined') {
+    appState.needsEditorReinit = false;
+    const content = typeof window.getEditorContent !== 'undefined' ? window.getEditorContent() : '';
+    window.initEditor(content, appState.currentFilename);
+  }
+
   // Restore focus to editor if a file is currently open
   if (appState.currentFileHandle) {
     appState.focusManager.focusEditor({ delay: 50, reason: 'picker-hidden' });
