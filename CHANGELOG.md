@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.1](https://github.com/zombar/hotnote.io/compare/v1.20.0...v1.20.1) (2025-11-13)
+
+
+### Bug Fixes
+
+* comments ui focus issues ([#92](https://github.com/zombar/hotnote.io/issues/92)) ([acd13b6](https://github.com/zombar/hotnote.io/commit/acd13b6f262d4a5371e31aa2d249de5da2761384))
+* theme manager coomment pane fixes ([#90](https://github.com/zombar/hotnote.io/issues/90)) ([48cf42d](https://github.com/zombar/hotnote.io/commit/48cf42d99b415c056007f15d13b1f5569b82dd00))
+
 ## [1.20.0](https://github.com/zombar/hotnote.io/compare/v1.19.2...v1.20.0) (2025-11-13)
 
 
