@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.4](https://github.com/zombar/hotnote.io/compare/v1.20.3...v1.20.4) (2025-11-13)
+
+
+### Bug Fixes
+
+* better comment position reconciliation ([#99](https://github.com/zombar/hotnote.io/issues/99)) ([1caeaa5](https://github.com/zombar/hotnote.io/commit/1caeaa57dd4ffdefb7791db91137901cbe43fb75))
+
 ## [1.20.3](https://github.com/zombar/hotnote.io/compare/v1.20.2...v1.20.3) (2025-11-13)
 
 
