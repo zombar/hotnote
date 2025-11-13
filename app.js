@@ -1419,6 +1419,12 @@ function setupSelectionListener() {
     // Debounce selection changes
     clearTimeout(selectionTimeout);
     selectionTimeout = setTimeout(() => {
+      // Runtime check: skip if in read-only mode (GitHub or other remote files)
+      if (appState.isGitHubMode || appState.isReadOnly) {
+        console.debug('[Comments] Skipping selection handler in read-only mode');
+        return;
+      }
+
       const editor = appState.editorManager || appState.editorView;
       if (!editor) {
         console.debug('[Comments] No editor available');
