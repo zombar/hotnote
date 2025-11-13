@@ -1369,8 +1369,18 @@ const closeComments = () => {
 // Expose closeComments for theme-manager module
 window.closeComments = closeComments;
 
+// Expose comment instances for testing
+window.commentToolbar = commentToolbar;
+window.commentPanel = commentPanel;
+
 // Initialize comment system
 function initCommentSystem() {
+  // Skip initialization if in GitHub read-only mode
+  if (appState.isGitHubMode || appState.isReadOnly) {
+    console.log('[Comments] Skipping initialization in read-only mode');
+    return;
+  }
+
   // Get editor container
   const editorContainer = document.getElementById('editor');
   if (!editorContainer) {
@@ -1386,6 +1396,10 @@ function initCommentSystem() {
   commentPanel.setToolbar(commentToolbar);
   commentToolbar.setPanel(commentPanel);
 
+  // Expose instances for testing
+  window.commentToolbar = commentToolbar;
+  window.commentPanel = commentPanel;
+
   // Setup selection listener
   setupSelectionListener();
 
@@ -1394,6 +1408,11 @@ function initCommentSystem() {
 
 // Setup selection listener for showing comment toolbar
 function setupSelectionListener() {
+  // Skip if in read-only mode
+  if (appState.isGitHubMode || appState.isReadOnly) {
+    return;
+  }
+
   let selectionTimeout = null;
 
   const handleSelectionChange = () => {

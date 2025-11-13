@@ -190,4 +190,70 @@ test.describe('GitHub Reader Feature', () => {
     const editorContent = await page.textContent('#editor');
     expect(editorContent.length).toBeGreaterThan(100);
   });
+
+  test('should not initialize comment system in gitreader mode', async ({ page }) => {
+    const githubUrl =
+      'https://raw.githubusercontent.com/anthropics/anthropic-sdk-python/main/README.md';
+    const encodedUrl = encodeURIComponent(githubUrl);
+
+    await page.goto(`/?gitreader=${encodedUrl}`);
+    await page
+      .waitForSelector('#github-loading-overlay', { state: 'hidden', timeout: 10000 })
+      .catch(() => {});
+    await page.waitForSelector('#editor', { timeout: 10000 });
+    await page.waitForTimeout(2000);
+
+    // Verify comment toolbar is not initialized
+    const commentToolbar = await page.evaluate(() => window.commentToolbar);
+    expect(commentToolbar).toBeUndefined();
+
+    // Verify comment panel is not initialized
+    const commentPanel = await page.evaluate(() => window.commentPanel);
+    expect(commentPanel).toBeUndefined();
+
+    // Verify comment toolbar element doesn't exist in DOM
+    const toolbarElement = await page.$('.comment-toolbar');
+    expect(toolbarElement).toBeNull();
+
+    // Verify comment panel element doesn't exist in DOM
+    const panelElement = await page.$('.comment-panel');
+    expect(panelElement).toBeNull();
+  });
+
+  test('should not show comment toolbar on text selection in gitreader mode', async ({ page }) => {
+    const githubUrl =
+      'https://raw.githubusercontent.com/anthropics/anthropic-sdk-python/main/README.md';
+    const encodedUrl = encodeURIComponent(githubUrl);
+
+    await page.goto(`/?gitreader=${encodedUrl}`);
+    await page
+      .waitForSelector('#github-loading-overlay', { state: 'hidden', timeout: 10000 })
+      .catch(() => {});
+    await page.waitForSelector('#editor', { timeout: 10000 });
+    await page.waitForTimeout(2000);
+
+    // Try to select text in the editor
+    await page.evaluate(() => {
+      const editor = document.querySelector('#editor .ProseMirror');
+      if (editor && editor.firstChild) {
+        const range = document.createRange();
+        range.selectNodeContents(editor.firstChild);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    });
+
+    // Trigger mouseup event to potentially show comment toolbar
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+
+    // Verify comment toolbar is not visible
+    const visibleToolbar = await page.$('.comment-toolbar.visible');
+    expect(visibleToolbar).toBeNull();
+
+    // Double-check toolbar element doesn't exist at all
+    const toolbarElement = await page.$('.comment-toolbar');
+    expect(toolbarElement).toBeNull();
+  });
 });
