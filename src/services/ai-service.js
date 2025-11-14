@@ -1,13 +1,11 @@
 /**
  * AI Service
- * Handles communication with AI providers for text improvement
+ * Handles communication with Ollama for text improvement
+ * Hotnote uses Ollama for local-first, privacy-preserving AI features
  */
 
 import { getSettings } from '../state/settings-manager.js';
-import { OpenAIProvider } from './providers/openai-provider.js';
-import { ClaudeProvider } from './providers/claude-provider.js';
 import { OllamaProvider } from './providers/ollama-provider.js';
-import { isLocalEnvironment } from '../utils/environment.js';
 
 /**
  * Extract comments from text
@@ -54,100 +52,18 @@ export function extractCommentsFromText(text) {
 }
 
 /**
- * Provider registry
- */
-const PROVIDERS = {
-  openai: OpenAIProvider,
-  claude: ClaudeProvider,
-  ollama: OllamaProvider,
-};
-
-/**
- * Create provider instance based on settings
+ * Create Ollama provider instance based on settings
  */
 function createProvider(settings) {
-  let provider = settings.provider || 'claude';
+  const config = {
+    endpoint: settings.endpoint,
+    model: settings.model,
+    systemPrompt: settings.systemPrompt,
+    temperature: settings.temperature,
+    topP: settings.topP,
+  };
 
-  // Environment-based fallback logic
-  if (isLocalEnvironment()) {
-    // When running locally, cloud APIs don't work due to CORS
-    // Fall back to Ollama if a cloud provider is selected
-    if (provider === 'claude' || provider === 'openai') {
-      console.warn(
-        `[AI] ${provider} is not available when running locally due to CORS. Falling back to Ollama.`
-      );
-      provider = 'ollama';
-    }
-  } else {
-    // When hosted, Ollama doesn't work due to mixed content (HTTPS → HTTP)
-    // Fall back to Claude if Ollama is selected
-    if (provider === 'ollama') {
-      console.warn(
-        '[AI] Ollama is not available on hosted site due to mixed content policy. Falling back to Claude.'
-      );
-      provider = 'claude';
-    }
-  }
-
-  const ProviderClass = PROVIDERS[provider];
-
-  if (!ProviderClass) {
-    throw new Error(`Unknown AI provider: ${provider}`);
-  }
-
-  // Build provider config based on provider type
-  let config;
-  if (provider === 'ollama') {
-    config = {
-      endpoint: settings.ollama?.endpoint,
-      model: settings.ollama?.model,
-      systemPrompt: settings.ollama?.systemPrompt,
-      temperature: settings.ollama?.temperature,
-      topP: settings.ollama?.topP,
-    };
-  } else {
-    // OpenAI and Claude use API keys
-    config = {
-      apiKey: settings.apiKeys?.[provider],
-      model: settings[provider]?.model,
-      systemPrompt: settings[provider]?.systemPrompt,
-      temperature: settings[provider]?.temperature,
-      topP: settings[provider]?.topP,
-    };
-  }
-
-  return new ProviderClass(config);
-}
-
-/**
- * Get available providers based on environment
- * - Local (localhost): Only Ollama works (cloud APIs blocked by CORS)
- * - Hosted (hotnote.io): Only cloud APIs work (Ollama blocked by mixed content)
- */
-export function getAvailableProviders() {
-  // When running locally (localhost), only Ollama works
-  // Cloud APIs (Claude, OpenAI) are blocked by CORS policy
-  if (isLocalEnvironment()) {
-    return [{ value: 'ollama', label: 'Ollama (Local)' }];
-  }
-
-  // When hosted (hotnote.io), only cloud APIs work
-  // Ollama (localhost) is blocked by mixed content policy (HTTPS → HTTP)
-  return [
-    { value: 'claude', label: 'Claude (Anthropic)' },
-    { value: 'openai', label: 'ChatGPT (OpenAI)' },
-  ];
-}
-
-/**
- * Get models for a specific provider
- */
-export function getModelsForProvider(provider) {
-  const ProviderClass = PROVIDERS[provider];
-  if (!ProviderClass) {
-    return [];
-  }
-  return ProviderClass.getAvailableModels();
+  return new OllamaProvider(config);
 }
 
 /**

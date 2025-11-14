@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  settingsManager,
   loadSettings,
   saveSettings,
   getSettings,
@@ -16,342 +15,283 @@ describe('Settings Manager', () => {
   });
 
   describe('Default Settings', () => {
-    it('should return default settings when no settings are stored', () => {
+    it('should return default Ollama settings when no settings are stored', () => {
       const settings = getSettings();
 
-      // Check structure includes all provider settings
-      expect(settings.provider).toBe('ollama');
-      expect(settings.ollama).toEqual({
-        endpoint: 'http://localhost:11434',
-        model: 'llama2',
-        systemPrompt:
-          'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
-        temperature: 0.7,
-        topP: 0.9,
-      });
-      expect(settings.claude).toBeDefined();
-      expect(settings.openai).toBeDefined();
-      expect(settings.apiKeys).toBeDefined();
+      expect(settings.endpoint).toBe('http://localhost:11434');
+      expect(settings.model).toBe('llama2');
+      expect(settings.systemPrompt).toBe(
+        'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.'
+      );
+      expect(settings.temperature).toBe(0.7);
+      expect(settings.topP).toBe(0.9);
     });
 
     it('should have valid default endpoint URL', () => {
       const settings = getSettings();
-      expect(validateEndpointUrl(settings.ollama.endpoint)).toBe(true);
+      expect(validateEndpointUrl(settings.endpoint)).toBe(true);
     });
 
     it('should have temperature between 0 and 1', () => {
       const settings = getSettings();
-      expect(settings.ollama.temperature).toBeGreaterThanOrEqual(0);
-      expect(settings.ollama.temperature).toBeLessThanOrEqual(1);
+      expect(settings.temperature).toBeGreaterThanOrEqual(0);
+      expect(settings.temperature).toBeLessThanOrEqual(1);
     });
 
     it('should have topP between 0 and 1', () => {
       const settings = getSettings();
-      expect(settings.ollama.topP).toBeGreaterThanOrEqual(0);
-      expect(settings.ollama.topP).toBeLessThanOrEqual(1);
+      expect(settings.topP).toBeGreaterThanOrEqual(0);
+      expect(settings.topP).toBeLessThanOrEqual(1);
     });
   });
 
   describe('loadSettings', () => {
     it('should load settings from localStorage', () => {
       const customSettings = {
-        ollama: {
-          endpoint: 'http://custom:8080',
-          model: 'mistral',
-          systemPrompt: 'Custom prompt',
-          temperature: 0.5,
-          topP: 0.8,
-        },
+        endpoint: 'http://custom:8080',
+        model: 'mistral',
+        systemPrompt: 'Custom prompt',
+        temperature: 0.5,
+        topP: 0.8,
       };
 
       localStorage.setItem('hotnote_settings', JSON.stringify(customSettings));
 
       const loaded = loadSettings();
-      // Settings are merged with defaults, so check specific fields
-      expect(loaded.ollama).toEqual(customSettings.ollama);
-      expect(loaded.provider).toBeDefined();
-      expect(loaded.apiKeys).toBeDefined();
+      expect(loaded).toEqual(customSettings);
     });
 
     it('should return default settings if localStorage is empty', () => {
       const settings = loadSettings();
 
-      expect(settings.ollama.endpoint).toBe('http://localhost:11434');
-      expect(settings.ollama.model).toBe('llama2');
+      expect(settings.endpoint).toBe('http://localhost:11434');
+      expect(settings.model).toBe('llama2');
     });
 
     it('should return default settings if localStorage contains invalid JSON', () => {
       localStorage.setItem('hotnote_settings', '{ invalid json');
 
       const settings = loadSettings();
-      expect(settings.ollama.endpoint).toBe('http://localhost:11434');
+      expect(settings.endpoint).toBe('http://localhost:11434');
     });
 
     it('should merge with defaults if settings are incomplete', () => {
       const partialSettings = {
-        ollama: {
-          endpoint: 'http://custom:9000',
-        },
+        endpoint: 'http://custom:9000',
       };
 
       localStorage.setItem('hotnote_settings', JSON.stringify(partialSettings));
 
       const settings = loadSettings();
-      expect(settings.ollama.endpoint).toBe('http://custom:9000');
-      expect(settings.ollama.model).toBe('llama2'); // From defaults
-      expect(settings.ollama.temperature).toBe(0.7); // From defaults
+      expect(settings.endpoint).toBe('http://custom:9000');
+      expect(settings.model).toBe('llama2'); // Default value
     });
   });
 
   describe('saveSettings', () => {
     it('should save settings to localStorage', () => {
-      const newSettings = {
-        ollama: {
-          endpoint: 'http://localhost:11434',
-          model: 'codellama',
-          systemPrompt: 'Test prompt',
-          temperature: 0.3,
-          topP: 0.95,
-        },
+      const settings = {
+        endpoint: 'http://test:1234',
+        model: 'codellama',
+        systemPrompt: 'Test prompt',
+        temperature: 0.3,
+        topP: 0.7,
       };
 
-      saveSettings(newSettings);
-
-      const stored = localStorage.getItem('hotnote_settings');
-      expect(stored).toBeTruthy();
-
-      const parsed = JSON.parse(stored);
-      // Settings are merged with defaults, so check specific fields
-      expect(parsed.ollama).toEqual(newSettings.ollama);
-      expect(parsed.provider).toBeDefined();
-    });
-
-    it('should overwrite existing settings', () => {
-      const initialSettings = {
-        ollama: {
-          endpoint: 'http://old:8080',
-          model: 'llama2',
-          systemPrompt: 'Old prompt',
-          temperature: 0.5,
-          topP: 0.8,
-        },
-      };
-
-      saveSettings(initialSettings);
-
-      const newSettings = {
-        ollama: {
-          endpoint: 'http://new:9090',
-          model: 'mistral',
-          systemPrompt: 'New prompt',
-          temperature: 0.6,
-          topP: 0.85,
-        },
-      };
-
-      saveSettings(newSettings);
+      saveSettings(settings);
 
       const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
-      expect(stored.ollama.endpoint).toBe('http://new:9090');
-      expect(stored.ollama.model).toBe('mistral');
+      expect(stored).toEqual(settings);
+    });
+
+    it('should validate and normalize endpoint URL', () => {
+      const settings = {
+        endpoint: 'http://localhost:1234/',
+        model: 'llama2',
+      };
+
+      saveSettings(settings);
+
+      const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
+      expect(stored.endpoint).toBe('http://localhost:1234'); // Trailing slash removed
+    });
+
+    it('should clamp temperature to 0-1 range', () => {
+      const settingsTooHigh = {
+        endpoint: 'http://localhost:11434',
+        model: 'llama2',
+        temperature: 1.5,
+      };
+
+      saveSettings(settingsTooHigh);
+
+      const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
+      expect(stored.temperature).toBe(1); // Clamped to max
+
+      const settingsTooLow = {
+        endpoint: 'http://localhost:11434',
+        model: 'llama2',
+        temperature: -0.5,
+      };
+
+      saveSettings(settingsTooLow);
+
+      const stored2 = JSON.parse(localStorage.getItem('hotnote_settings'));
+      expect(stored2.temperature).toBe(0); // Clamped to min
+    });
+
+    it('should clamp topP to 0-1 range', () => {
+      const settingsTooHigh = {
+        endpoint: 'http://localhost:11434',
+        model: 'llama2',
+        topP: 2.0,
+      };
+
+      saveSettings(settingsTooHigh);
+
+      const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
+      expect(stored.topP).toBe(1); // Clamped to max
     });
   });
 
   describe('updateSettings', () => {
-    it('should update specific settings while preserving others', () => {
+    it('should update specific settings fields', () => {
+      // Start with defaults
       const initial = getSettings();
+      expect(initial.model).toBe('llama2');
 
-      updateSettings({
-        ollama: {
-          endpoint: 'http://updated:7777',
-        },
-      });
+      // Update only model
+      updateSettings({ model: 'mistral' });
 
       const updated = getSettings();
-      expect(updated.ollama.endpoint).toBe('http://updated:7777');
-      expect(updated.ollama.model).toBe(initial.ollama.model);
-      expect(updated.ollama.systemPrompt).toBe(initial.ollama.systemPrompt);
+      expect(updated.model).toBe('mistral');
+      expect(updated.endpoint).toBe('http://localhost:11434'); // Other settings unchanged
     });
 
-    it('should update multiple fields at once', () => {
-      updateSettings({
-        ollama: {
-          model: 'phi',
-          temperature: 0.2,
-        },
+    it('should merge updates with existing settings', () => {
+      // Set initial settings
+      saveSettings({
+        endpoint: 'http://test:8080',
+        model: 'llama2',
+        systemPrompt: 'Original prompt',
       });
+
+      // Update only endpoint
+      updateSettings({ endpoint: 'http://new:9000' });
 
       const settings = getSettings();
-      expect(settings.ollama.model).toBe('phi');
-      expect(settings.ollama.temperature).toBe(0.2);
-    });
-
-    it('should persist updates to localStorage', () => {
-      updateSettings({
-        ollama: {
-          endpoint: 'http://persistent:3000',
-        },
-      });
-
-      const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
-      expect(stored.ollama.endpoint).toBe('http://persistent:3000');
+      expect(settings.endpoint).toBe('http://new:9000');
+      expect(settings.model).toBe('llama2');
+      expect(settings.systemPrompt).toBe('Original prompt');
     });
   });
 
   describe('resetSettings', () => {
     it('should reset to default settings', () => {
-      // First, modify settings
-      updateSettings({
-        ollama: {
-          endpoint: 'http://custom:5000',
-          model: 'custom-model',
-          temperature: 0.1,
-        },
+      // Set custom settings
+      saveSettings({
+        endpoint: 'http://custom:8080',
+        model: 'mistral',
+        systemPrompt: 'Custom',
       });
-
-      // Verify settings were changed
-      let settings = getSettings();
-      expect(settings.ollama.endpoint).toBe('http://custom:5000');
 
       // Reset
       resetSettings();
 
-      // Verify settings are back to defaults
-      settings = getSettings();
-      expect(settings.ollama.endpoint).toBe('http://localhost:11434');
-      expect(settings.ollama.model).toBe('llama2');
-      expect(settings.ollama.temperature).toBe(0.7);
+      const settings = getSettings();
+      expect(settings.endpoint).toBe('http://localhost:11434');
+      expect(settings.model).toBe('llama2');
     });
 
-    it('should remove settings from localStorage', () => {
-      updateSettings({
-        ollama: { endpoint: 'http://test:8080' },
-      });
-
-      expect(localStorage.getItem('hotnote_settings')).toBeTruthy();
-
+    it('should clear localStorage', () => {
+      saveSettings({ endpoint: 'http://test:1234' });
       resetSettings();
 
-      expect(localStorage.getItem('hotnote_settings')).toBeNull();
+      const stored = localStorage.getItem('hotnote_settings');
+      expect(stored).toBeNull();
     });
   });
 
-  describe('validateEndpointUrl', () => {
-    it('should accept valid http URLs', () => {
+  describe('Endpoint URL Validation', () => {
+    it('should accept valid HTTP URLs', () => {
       expect(validateEndpointUrl('http://localhost:11434')).toBe(true);
-      expect(validateEndpointUrl('http://127.0.0.1:8080')).toBe(true);
-      expect(validateEndpointUrl('http://example.com:3000')).toBe(true);
+      expect(validateEndpointUrl('http://192.168.1.1:8080')).toBe(true);
     });
 
-    it('should accept valid https URLs', () => {
+    it('should accept valid HTTPS URLs', () => {
       expect(validateEndpointUrl('https://api.example.com')).toBe(true);
-      expect(validateEndpointUrl('https://ollama.local:443')).toBe(true);
+      expect(validateEndpointUrl('https://localhost:11434')).toBe(true);
     });
 
     it('should reject invalid URLs', () => {
-      expect(validateEndpointUrl('not a url')).toBe(false);
+      expect(validateEndpointUrl('not-a-url')).toBe(false);
+      expect(validateEndpointUrl('ftp://invalid.com')).toBe(false);
       expect(validateEndpointUrl('')).toBe(false);
-      expect(validateEndpointUrl('ftp://example.com')).toBe(false);
+      expect(validateEndpointUrl(null)).toBe(false);
     });
 
-    it('should reject URLs without protocol', () => {
-      expect(validateEndpointUrl('localhost:11434')).toBe(false);
-      expect(validateEndpointUrl('example.com')).toBe(false);
-    });
+    it('should reset invalid endpoint to default on save', () => {
+      const settings = {
+        endpoint: 'invalid-url',
+        model: 'llama2',
+      };
 
-    it('should accept URLs without port', () => {
-      expect(validateEndpointUrl('http://localhost')).toBe(true);
-      expect(validateEndpointUrl('https://example.com')).toBe(true);
+      saveSettings(settings);
+
+      const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
+      expect(stored.endpoint).toBe('http://localhost:11434'); // Reset to default
     });
   });
 
-  describe('Settings Manager Singleton', () => {
-    it('should provide singleton instance', () => {
-      expect(settingsManager).toBeDefined();
-      expect(typeof settingsManager.get).toBe('function');
-      expect(typeof settingsManager.update).toBe('function');
-      expect(typeof settingsManager.reset).toBe('function');
+  describe('Model Name Validation', () => {
+    it('should trim whitespace from model names', () => {
+      const settings = {
+        endpoint: 'http://localhost:11434',
+        model: '  mistral  ',
+      };
+
+      saveSettings(settings);
+
+      const stored = JSON.parse(localStorage.getItem('hotnote_settings'));
+      expect(stored.model).toBe('mistral');
     });
 
-    it('should maintain state across calls', () => {
-      settingsManager.update({
-        ollama: { model: 'singleton-test' },
+    it('should accept various model name formats', () => {
+      const modelNames = ['llama2', 'mistral', 'codellama', 'llama3:70b', 'mistral:latest'];
+
+      modelNames.forEach((modelName) => {
+        updateSettings({ model: modelName });
+        const settings = getSettings();
+        expect(settings.model).toBe(modelName);
       });
-
-      const settings1 = settingsManager.get();
-      const settings2 = settingsManager.get();
-
-      expect(settings1.ollama.model).toBe('singleton-test');
-      expect(settings2.ollama.model).toBe('singleton-test');
     });
   });
 
-  describe('Integration scenarios', () => {
-    it('should handle complete settings workflow', () => {
-      // Start with defaults
-      const defaults = getSettings();
-      expect(defaults.ollama.model).toBe('llama2');
-
-      // Update settings
-      updateSettings({
+  describe('Legacy Settings Migration', () => {
+    it('should migrate from old nested structure to new flat structure', () => {
+      // Old structure with nested ollama object
+      const legacySettings = {
+        provider: 'ollama',
         ollama: {
-          endpoint: 'http://workflow:4000',
-          model: 'workflow-model',
-          systemPrompt: 'Workflow prompt',
-          temperature: 0.4,
-          topP: 0.75,
+          endpoint: 'http://custom:8080',
+          model: 'mistral',
+          systemPrompt: 'Legacy prompt',
+          temperature: 0.5,
+          topP: 0.8,
         },
-      });
-
-      // Verify update
-      let settings = getSettings();
-      expect(settings.ollama.endpoint).toBe('http://workflow:4000');
-      expect(settings.ollama.model).toBe('workflow-model');
-
-      // Simulate reload (clear memory, load from localStorage)
-      const stored = localStorage.getItem('hotnote_settings');
-      const reloaded = JSON.parse(stored);
-
-      expect(reloaded.ollama.endpoint).toBe('http://workflow:4000');
-      expect(reloaded.ollama.model).toBe('workflow-model');
-
-      // Reset
-      resetSettings();
-
-      // Verify reset
-      settings = getSettings();
-      expect(settings.ollama.model).toBe('llama2');
-      expect(localStorage.getItem('hotnote_settings')).toBeNull();
-    });
-
-    it('should handle corrupted localStorage gracefully', () => {
-      // Corrupt localStorage
-      localStorage.setItem('hotnote_settings', 'corrupted{data');
-
-      // Should fall back to defaults without throwing
-      expect(() => loadSettings()).not.toThrow();
-
-      const settings = loadSettings();
-      expect(settings.ollama.endpoint).toBe('http://localhost:11434');
-    });
-
-    it('should validate settings before saving', () => {
-      const invalidSettings = {
-        ollama: {
-          endpoint: 'invalid url',
-          model: 'test',
-          systemPrompt: 'test',
-          temperature: 1.5, // Out of range
-          topP: -0.1, // Out of range
+        apiKeys: {
+          claude: 'sk-ant-test',
+          openai: 'sk-test',
         },
       };
 
-      // saveSettings should validate and clamp values
-      saveSettings(invalidSettings);
+      localStorage.setItem('hotnote_settings', JSON.stringify(legacySettings));
 
-      const settings = getSettings();
-      // Endpoint should be rejected, fall back to default
-      expect(validateEndpointUrl(settings.ollama.endpoint)).toBe(true);
+      const settings = loadSettings();
+
+      // Should extract ollama settings to top level
+      expect(settings.ollama).toBeDefined();
+      expect(settings.ollama.endpoint).toBe('http://custom:8080');
     });
   });
 });

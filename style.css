@@ -2792,6 +2792,69 @@ body.dark .comment-panel {
   margin-top: -4px;
 }
 
+/* Settings Select Dropdown */
+.settings-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+.settings-select:hover {
+  border-color: var(--text-secondary);
+}
+
+/* API Key Input Container */
+.settings-api-key-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-api-key-container .settings-input {
+  flex: 1;
+}
+
+.settings-api-key-toggle {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.settings-api-key-toggle:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--text-secondary);
+}
+
+.settings-api-key-toggle:active {
+  transform: scale(0.98);
+}
+
+/* Help Text */
+.settings-help-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+.settings-help-text a {
+  color: var(--brand-purple);
+  text-decoration: none;
+}
+
+.settings-help-text a:hover {
+  text-decoration: underline;
+}
+
 /* Settings Footer */
 .settings-footer {
   padding: 16px 24px;

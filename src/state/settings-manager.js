@@ -6,33 +6,12 @@
 const STORAGE_KEY = 'hotnote_settings';
 
 const DEFAULT_SETTINGS = {
-  provider: 'ollama', // Default to Ollama (works locally, falls back to Claude when hosted)
-  apiKeys: {
-    openai: '',
-    claude: '',
-  },
-  openai: {
-    model: 'gpt-4o-mini',
-    systemPrompt:
-      'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
-    temperature: 0.7,
-    topP: 0.9,
-  },
-  claude: {
-    model: 'claude-3-haiku-20240307',
-    systemPrompt:
-      'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
-    temperature: 0.7,
-    topP: 0.9,
-  },
-  ollama: {
-    endpoint: 'http://localhost:11434',
-    model: 'llama2',
-    systemPrompt:
-      'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
-    temperature: 0.7,
-    topP: 0.9,
-  },
+  endpoint: 'http://localhost:11434',
+  model: 'llama2',
+  systemPrompt:
+    'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
+  temperature: 0.7,
+  topP: 0.9,
 };
 
 /**
@@ -76,81 +55,33 @@ export function validateEndpointUrl(url) {
 }
 
 /**
- * Validate and sanitize settings
+ * Validate and sanitize Ollama settings
  */
 function validateSettings(settings) {
   const validated = deepMerge({}, settings);
 
-  // Validate provider selection
-  const validProviders = ['openai', 'claude', 'ollama'];
-  if (!validProviders.includes(validated.provider)) {
-    validated.provider = DEFAULT_SETTINGS.provider;
+  // Normalize and validate endpoint URL
+  if (validated.endpoint && typeof validated.endpoint === 'string') {
+    // Trim whitespace and remove trailing slashes
+    validated.endpoint = validated.endpoint.trim().replace(/\/+$/, '');
+  }
+  if (!validateEndpointUrl(validated.endpoint)) {
+    validated.endpoint = DEFAULT_SETTINGS.endpoint;
   }
 
-  // Note: We don't enforce environment-based provider restrictions here
-  // The ai-service.js handles fallback logic when a provider isn't available
-
-  // Validate API keys
-  if (validated.apiKeys) {
-    if (validated.apiKeys.openai && typeof validated.apiKeys.openai === 'string') {
-      validated.apiKeys.openai = validated.apiKeys.openai.trim();
-    }
-    if (validated.apiKeys.claude && typeof validated.apiKeys.claude === 'string') {
-      validated.apiKeys.claude = validated.apiKeys.claude.trim();
-    }
+  // Normalize model name
+  if (validated.model && typeof validated.model === 'string') {
+    validated.model = validated.model.trim();
   }
 
-  // Validate OpenAI settings
-  if (validated.openai) {
-    if (validated.openai.model && typeof validated.openai.model === 'string') {
-      validated.openai.model = validated.openai.model.trim();
-    }
-    if (typeof validated.openai.temperature === 'number') {
-      validated.openai.temperature = clamp(validated.openai.temperature, 0, 1);
-    }
-    if (typeof validated.openai.topP === 'number') {
-      validated.openai.topP = clamp(validated.openai.topP, 0, 1);
-    }
+  // Clamp temperature to 0-1
+  if (typeof validated.temperature === 'number') {
+    validated.temperature = clamp(validated.temperature, 0, 1);
   }
 
-  // Validate Claude settings
-  if (validated.claude) {
-    if (validated.claude.model && typeof validated.claude.model === 'string') {
-      validated.claude.model = validated.claude.model.trim();
-    }
-    if (typeof validated.claude.temperature === 'number') {
-      validated.claude.temperature = clamp(validated.claude.temperature, 0, 1);
-    }
-    if (typeof validated.claude.topP === 'number') {
-      validated.claude.topP = clamp(validated.claude.topP, 0, 1);
-    }
-  }
-
-  // Validate Ollama settings
-  if (validated.ollama) {
-    // Normalize and validate endpoint URL
-    if (validated.ollama.endpoint && typeof validated.ollama.endpoint === 'string') {
-      // Trim whitespace and remove trailing slashes
-      validated.ollama.endpoint = validated.ollama.endpoint.trim().replace(/\/+$/, '');
-    }
-    if (!validateEndpointUrl(validated.ollama.endpoint)) {
-      validated.ollama.endpoint = DEFAULT_SETTINGS.ollama.endpoint;
-    }
-
-    // Normalize model name
-    if (validated.ollama.model && typeof validated.ollama.model === 'string') {
-      validated.ollama.model = validated.ollama.model.trim();
-    }
-
-    // Clamp temperature to 0-1
-    if (typeof validated.ollama.temperature === 'number') {
-      validated.ollama.temperature = clamp(validated.ollama.temperature, 0, 1);
-    }
-
-    // Clamp topP to 0-1
-    if (typeof validated.ollama.topP === 'number') {
-      validated.ollama.topP = clamp(validated.ollama.topP, 0, 1);
-    }
+  // Clamp topP to 0-1
+  if (typeof validated.topP === 'number') {
+    validated.topP = clamp(validated.topP, 0, 1);
   }
 
   return validated;
