@@ -10,7 +10,7 @@
 
 - fix clicking on links
 
-- need to replace intenseness functionality somehow (1B local inferencing?)
+- need to replace intellisense functionality somehow (1B local inferencing?)
 
 - cmd + s should save on mac (ctrl + s on windows) and whatever the linux shortcut is
 

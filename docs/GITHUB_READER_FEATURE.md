@@ -8,10 +8,10 @@ The GitHub Repository Browser feature enables users to open, browse, and view fi
 
 - **URL-based File Opening**: Open any GitHub file via URL parameter
 - **Full Repository Navigation**: Browse the complete directory structure of any GitHub repository
+- **Folder Navigation**: Click folders to navigate into directories, use '...' to go to parent directory
+- **Related Files Section**: View and navigate folders and files in the current directory
 - **README Discovery**: Automatically highlight and quick-access README files
 - **Read-Only Mode**: Safe viewing without risk of accidental modifications
-- **Folder Traversal**: Navigate up and down the repository tree structure
-- **GitHub Gist Support**: View and browse GitHub Gists
 - **No Workspace Required**: Access files without local directory setup
 
 ## User Stories
@@ -30,19 +30,14 @@ The GitHub Repository Browser feature enables users to open, browse, and view fi
 
 **Flow:**
 1. User opens any file from a GitHub repo
-2. File picker displays the complete repository tree
-3. User navigates between folders
-4. User can quickly jump to different files
-5. Breadcrumb shows current location in repo
-
-### Story 3: Gist Viewing
-> As a student, I want to view code snippets shared via GitHub Gist so that I can study examples.
-
-**Flow:**
-1. User clicks gist link with `?gitreader` parameter
-2. Gist opens in read-only mode
-3. User can read and study the code
-4. Syntax highlighting works automatically
+2. Related Files section displays folders and files in the current directory
+3. Breadcrumb shows: `owner/repo@branch > folder > file.md`
+4. User clicks a folder in Related Files to navigate into it
+5. Breadcrumb updates to show new location: `owner/repo@branch > folder > subfolder`
+6. Related Files shows contents of the subfolder
+7. User clicks '...' to navigate back to parent directory
+8. Breadcrumb updates to reflect parent path
+9. User clicks different files to open and read them
 
 ## Technical Architecture
 
@@ -88,7 +83,7 @@ The GitHub Repository Browser feature enables users to open, browse, and view fi
 #### 1. GitHub Adapter (`src/fs/github-adapter.js`)
 
 **Responsibilities:**
-- Parse GitHub URLs (raw.githubusercontent.com, github.com, gist)
+- Parse GitHub URLs (raw.githubusercontent.com, github.com)
 - Interact with GitHub Contents API
 - Implement rate limiting and caching
 - Provide virtual file handles
@@ -99,7 +94,7 @@ class GitHubAdapter {
   constructor(owner, repo, branch = 'main')
 
   // Parse various GitHub URL formats
-  static parseURL(url) → { owner, repo, branch, path, type }
+  static parseURL(url) → { owner, repo, branch, path }
 
   // List directory contents
   async listDirectory(path) → Array<VirtualFileHandle>
@@ -155,6 +150,9 @@ class GitHubFileHandle {
     rootPath: string
   },
 
+  // Current directory path being viewed in GitHub mode
+  githubCurrentPath: string,
+
   // GitHub adapter instance
   githubAdapter: GitHubAdapter | null,
 
@@ -177,17 +175,7 @@ Example:
 https://hotnote.io/?gitreader=https://raw.githubusercontent.com/zombar/hotnote.io/main/README.md
 ```
 
-**2. GitHub Gist URLs**
-```
-https://hotnote.io/?gitreader=https://gist.githubusercontent.com/USERNAME/GIST_ID/raw/FILENAME
-```
-
-Example:
-```
-https://hotnote.io/?gitreader=https://gist.githubusercontent.com/zombar/abc123/raw/example.md
-```
-
-**3. GitHub Blob URLs (Future)**
+**2. GitHub Blob URLs (Optional/Future)**
 ```
 https://hotnote.io/?gitreader=https://github.com/OWNER/REPO/blob/BRANCH/PATH
 ```
@@ -204,13 +192,30 @@ function parseGitHubURL(url) {
   // Raw GitHub pattern
   const rawPattern = /^https:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)\/(.+)$/;
 
-  // Gist pattern
-  const gistPattern = /^https:\/\/gist\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/raw\/(.+)$/;
-
-  // GitHub blob pattern
+  // GitHub blob pattern (optional)
   const blobPattern = /^https:\/\/github\.com\/([^\/]+)\/([^\/]+)\/blob\/([^\/]+)\/(.+)$/;
 
-  // Parse and return { owner, repo, branch, path, type: 'repo'|'gist' }
+  const rawMatch = url.match(rawPattern);
+  if (rawMatch) {
+    return {
+      owner: rawMatch[1],
+      repo: rawMatch[2],
+      branch: rawMatch[3],
+      path: rawMatch[4]
+    };
+  }
+
+  const blobMatch = url.match(blobPattern);
+  if (blobMatch) {
+    return {
+      owner: blobMatch[1],
+      repo: blobMatch[2],
+      branch: blobMatch[3],
+      path: blobMatch[4]
+    };
+  }
+
+  throw new Error('Invalid GitHub URL format');
 }
 ```
 
@@ -277,6 +282,128 @@ async function loadDirectoryWithLoading(path) {
 }
 ```
 
+### Related Files Section (GitHub Mode)
+
+**Overview:**
+When in GitHub reader mode, the "Related Files" section (file picker) must display folder navigation similar to local mode, allowing users to browse the repository structure.
+
+**Required Elements:**
+
+1. **Parent Directory Row ('...')**
+   - Show a `...` row at the top of the file list to navigate to parent directory
+   - Only show when not at repository root
+   - Clicking navigates up one level in the directory hierarchy
+
+2. **Folder Rows**
+   - Display all directories in the current path
+   - Show folder icon (📁) to distinguish from files
+   - Clicking a folder navigates into that directory and loads its contents
+   - Sort folders before files (alphabetically within each group)
+
+3. **File Rows**
+   - Display all files in the current directory
+   - Show file icon based on extension
+   - Clicking opens the file in the editor
+
+**Implementation:**
+```javascript
+async function renderRelatedFilesForGitHub(currentPath) {
+  const items = await appState.githubAdapter.listDirectory(currentPath);
+  const relatedFilesList = document.getElementById('related-files-list');
+
+  relatedFilesList.innerHTML = '';
+
+  // Add parent directory navigation if not at root
+  if (currentPath !== '' && currentPath !== '/') {
+    const parentRow = document.createElement('div');
+    parentRow.className = 'file-row parent-dir';
+    parentRow.innerHTML = `
+      <span class="file-icon">📁</span>
+      <span class="file-name">...</span>
+    `;
+    parentRow.addEventListener('click', () => {
+      const parentPath = currentPath.split('/').slice(0, -1).join('/');
+      navigateToDirectory(parentPath);
+    });
+    relatedFilesList.appendChild(parentRow);
+  }
+
+  // Separate and sort folders and files
+  const folders = items.filter(item => item.type === 'dir');
+  const files = items.filter(item => item.type === 'file');
+
+  // Render folders first
+  folders.forEach(folder => {
+    const folderRow = document.createElement('div');
+    folderRow.className = 'file-row folder';
+    folderRow.innerHTML = `
+      <span class="file-icon">📁</span>
+      <span class="file-name">${folder.name}</span>
+    `;
+    folderRow.addEventListener('click', () => {
+      navigateToDirectory(folder.path);
+    });
+    relatedFilesList.appendChild(folderRow);
+  });
+
+  // Render files
+  files.forEach(file => {
+    const fileRow = document.createElement('div');
+    fileRow.className = 'file-row';
+    fileRow.innerHTML = `
+      <span class="file-icon">${getFileIcon(file.name)}</span>
+      <span class="file-name">${file.name}</span>
+    `;
+    fileRow.addEventListener('click', () => {
+      openGitHubFile(file.path);
+    });
+    relatedFilesList.appendChild(fileRow);
+  });
+}
+
+async function navigateToDirectory(path) {
+  // Update current path state
+  appState.githubCurrentPath = path;
+
+  // Update breadcrumb to reflect new location
+  updateBreadcrumbForGitHub(path);
+
+  // Re-render file list with new directory contents
+  await renderRelatedFilesForGitHub(path);
+}
+
+// Example usage when clicking a folder:
+// User clicks "src" folder → navigateToDirectory("src")
+//   → Breadcrumb updates to "owner/repo@branch > src"
+//   → Related Files shows contents of src folder
+```
+
+**Visual Hierarchy:**
+```
+Related Files
+├── ... (parent directory - only if not at root)
+├── 📁 docs (folder)
+├── 📁 src (folder)
+├── 📖 README.md (file - special icon for README)
+├── 📄 package.json (file)
+└── 📄 index.html (file)
+```
+
+**State Management:**
+```javascript
+// Add to app-state.js
+{
+  // ... existing GitHub state
+  githubCurrentPath: string,  // Current directory path being viewed
+}
+```
+
+**Integration with Breadcrumbs:**
+The Related Files section and breadcrumb navigation are tightly integrated:
+- Every folder navigation updates both the Related Files list AND the breadcrumb
+- Clicking a breadcrumb segment navigates to that folder and updates Related Files
+- Both components always stay synchronized via `appState.githubCurrentPath`
+
 ### README Discovery
 
 **Auto-Detection Logic:**
@@ -300,25 +427,57 @@ function highlightREADME(items) {
 
 ### Breadcrumb Navigation
 
+**Dynamic Updates:**
+The breadcrumb must update in real-time when navigating between folders in GitHub mode. This provides users with clear context about their current location in the repository.
+
 **Format for GitHub Repos:**
 ```
 owner/repo@branch > folder1 > folder2 > file.md
 ```
 
+**Behavior:**
+- When user clicks a folder: breadcrumb updates to show new path
+- When user clicks '...' (parent): breadcrumb updates to show parent path
+- When user clicks a file: breadcrumb updates to show full file path
+- Each breadcrumb segment is clickable to navigate to that level
+
 **Implementation:**
 ```javascript
-function updateBreadcrumbForGitHub() {
+function updateBreadcrumbForGitHub(currentPath) {
   const { owner, repo, branch } = appState.githubRepo;
   const pathParts = currentPath.split('/').filter(Boolean);
 
   breadcrumb.innerHTML = `
-    <span class="repo-root">${owner}/${repo}@${branch}</span>
+    <span class="repo-root clickable" data-path="">${owner}/${repo}@${branch}</span>
     ${pathParts.map((part, idx) => `
       <span class="separator">›</span>
-      <span class="path-part" data-path="${pathParts.slice(0, idx + 1).join('/')}">${part}</span>
+      <span class="path-part clickable" data-path="${pathParts.slice(0, idx + 1).join('/')}">${part}</span>
     `).join('')}
   `;
+
+  // Make breadcrumb parts clickable for navigation
+  breadcrumb.querySelectorAll('.clickable').forEach(el => {
+    el.addEventListener('click', () => {
+      const path = el.getAttribute('data-path');
+      navigateToDirectory(path);
+    });
+  });
 }
+```
+
+**Examples:**
+```
+# At repository root
+zombar/hotnote@main
+
+# In docs folder
+zombar/hotnote@main > docs
+
+# In nested folder
+zombar/hotnote@main > src > components
+
+# Viewing a file
+zombar/hotnote@main > src > index.js
 ```
 
 ## Read-Only Mode
@@ -513,7 +672,7 @@ catch (error) {
 function validateGitHubURL(url) {
   const allowedDomains = [
     'raw.githubusercontent.com',
-    'gist.githubusercontent.com'
+    'github.com'
   ];
 
   try {
@@ -565,8 +724,7 @@ function isSafeContentType(contentType) {
 
 **GitHub Raw Content:**
 - `raw.githubusercontent.com` allows CORS for all origins
-- `gist.githubusercontent.com` allows CORS for all origins
-- API endpoint `api.github.com` requires proper CORS headers
+- GitHub API endpoint `api.github.com` requires proper CORS headers
 
 **No Proxy Needed:**
 All GitHub raw content URLs are CORS-enabled by default.
@@ -802,12 +960,15 @@ async function getBlameInfo(owner, repo, path, lineNumber) {
 **Tasks:**
 - [ ] Integrate with file picker
 - [ ] Directory listing via API
-- [ ] Breadcrumb navigation updates
+- [ ] Related Files section with folder rows
+- [ ] Parent directory ('...') navigation row
+- [ ] Breadcrumb updates on folder navigation (synchronized with Related Files)
+- [ ] Clickable breadcrumb segments for navigation
 - [ ] README discovery
-- [ ] Folder expansion/collapse
+- [ ] Folder click-to-navigate functionality
 - [ ] Loading states
 
-**Deliverable:** Complete repository navigation
+**Deliverable:** Complete repository navigation with synchronized breadcrumb and Related Files
 
 ### Phase 3: Polish (Week 3)
 **Goal:** Production-ready experience
@@ -817,7 +978,6 @@ async function getBlameInfo(owner, repo, path, lineNumber) {
 - [ ] Comprehensive error handling
 - [ ] Caching implementation
 - [ ] Visual indicators (read-only badge)
-- [ ] Gist support
 - [ ] Performance optimization
 
 **Deliverable:** Production-ready feature
