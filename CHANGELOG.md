@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.3](https://github.com/zombar/hotnote.io/compare/v1.21.2...v1.21.3) (2025-11-14)
+
+
+### Bug Fixes
+
+* remove ai providers ([#114](https://github.com/zombar/hotnote.io/issues/114)) ([0dce3b4](https://github.com/zombar/hotnote.io/commit/0dce3b46d6b8134d1f4c4dd173c4243ac8b7430f))
+
 ## [1.21.2](https://github.com/zombar/hotnote.io/compare/v1.21.1...v1.21.2) (2025-11-14)
 
 
