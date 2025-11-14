@@ -26,6 +26,11 @@ export default defineConfig({
               copyFileSync('sw.js', 'dist/sw.js');
               // Generate version.json for runtime version checking
               writeFileSync('dist/version.json', JSON.stringify({ version }, null, 2));
+              // Copy PWA assets
+              copyFileSync('manifest.json', 'dist/manifest.json');
+              copyFileSync('favicon.png', 'dist/favicon.png');
+              copyFileSync('icon-192.png', 'dist/icon-192.png');
+              copyFileSync('icon-512.png', 'dist/icon-512.png');
             },
           },
         ],
