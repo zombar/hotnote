@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.5](https://github.com/zombar/hotnote.io/compare/v1.20.4...v1.20.5) (2025-11-14)
+
+
+### Bug Fixes
+
+* add missing pwa manifest details ([#102](https://github.com/zombar/hotnote.io/issues/102)) ([312a095](https://github.com/zombar/hotnote.io/commit/312a095c08972e1b208d615e3ea612220dfc5478))
+
 ## [1.20.4](https://github.com/zombar/hotnote.io/compare/v1.20.3...v1.20.4) (2025-11-13)
 
 
